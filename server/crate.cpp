@@ -47,7 +47,7 @@ Crate::~Crate() {
 }
 
 /*--------------------------------------------------------------*/
-int Crate::Boot(void) {
+int Crate::Boot(FillSched *s) {
   printf("Setting up the acquisition...\n");
   //first thing we do: try to make a lock file, abort the program
   //if one exists already
@@ -56,6 +56,7 @@ int Crate::Boot(void) {
   readParameters();  //get parameters for run from file
   readConnections(); //get system component data from file
   readCalibration(); //get sensor calibration data from file
+	readSchedule(s); //read in the filling schedule
 
   /* Initialize (or re-initialize) all data saving buffers prior to run */
   cbInit(&rtbuffer, circBufferSize);
@@ -1023,45 +1024,49 @@ int Crate::readCalibration(void) {
   return 1;
 }
 
-void Crate::readSchedule(){
+void Crate::readSchedule(FillSched *s){
 
-	/*char *tok;
+	char *tok;
   char str[256];//string to be read from file (will be tokenized)
   char line[256];
-  int tokPos;//position when tokenizing
+	int currentEntry=0;
 
 	FILE *schedfile = fopen("schedule.txt", "r");
 
-	while(!(feof(config)))//go until the end of file is reached
+	while(!(feof(schedfile)))//go until the end of file is reached
     {
-			if(fgets(str,256,config)!=NULL) //get an entire line
+			if(fgets(str,256,schedfile)!=NULL) //get an entire line
 				{
-					//sscanf(str,"%s",str1);
+					//printf("%s\n",str); //print the line (debug)
 					strcpy(line,str); //store the entire line
 					tok=strtok (str,",");
-					tokPos=0;
 					tok[strcspn(tok, "\r\n")] = 0;//strips newline characters from the string
-					strcpy(val[tokPos],tok);
-					while (tok != NULL)
-					{
-						tok = strtok (NULL, " ");
-						if(tok!=NULL)
-							{
-								tokPos++;
-								if(tokPos<MAXNUMVALS)
-									{
-										tok[strcspn(tok, "\r\n")] = 0;//strips newline characters from the string
-										strcpy(val[tokPos],tok);
-									}
-								else
-									break;
+					strcpy(s->sched[currentEntry].entryName,tok);
+					tok = strtok (NULL, "[");
+					if(tok!=NULL)
+						{
+							strcpy(line,tok);
+							if(strcmp(line,"valve")==0){
+								
+							}else if(strcmp(line,"time")==0){
+
+							}else{
+								printf("FILL SCHEDULE PARSING ERROR: wrong parameter (valid values are 'valve', 'time').\n");
+								exit(-1);
 							}
-					}
+							
+						}
 				}
+			currentEntry++;
 		}
 
-	fclose(schedfile);*/
-	printf("Fill schedule read.\n");
+	fclose(schedfile);
+
+	//report on fill schedule info that was read in
+	printf("Fill schedule read. %i entries read.\n",currentEntry-1);
+	for(int i=0;i<currentEntry-1;i++){
+		printf("Entry %i name: %s\n",i+1,s->sched[i].entryName);
+	}
 }
 
 /*Funtion which converts dewar temperature sensor voltage values into temperatures*/

@@ -8,7 +8,7 @@ int main()
   FillSched *s=(FillSched*)calloc(1,sizeof(FillSched)); 
 
   Crate *crate=new Crate();
-  retval = crate->Boot();
+  retval = crate->Boot(s);
   if (retval < 0)
     exit(retval);
 

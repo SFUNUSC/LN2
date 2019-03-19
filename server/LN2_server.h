@@ -46,7 +46,7 @@ class Crate
 public:
   Crate();
   ~Crate();
-  int Boot(void);
+  int Boot(FillSched*);
   int MainLoop(FillSched*);
   int recordMeasurement(void);
   void ReadCommand (struct Signals*, char*);
@@ -70,7 +70,7 @@ public:
   int readParameters(void);
   int readConnections(void);
   int readCalibration(void);
-	void readSchedule(void);
+	void readSchedule(FillSched*);
   double findTemp(double vSensor, int sensorPort);
   double findWeight(double vScale);
 
