@@ -85,7 +85,7 @@ int Crate::Boot(void) {
 }
 /***********************************************************************************/
 /*The main loop, in which data is acquired and saved.*/
-int Crate::GetData(void) {
+int Crate::MainLoop(FillSched *s) {
   int j = waiting_mult + 1;
   int day, hour, minute;
   struct tm *goodtime;

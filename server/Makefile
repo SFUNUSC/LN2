@@ -2,7 +2,7 @@ CXX=g++
 CXXFLAGS:=-m32 -g -Wall -O2 -fPIC -ansi
 NILIBS= -lnidaqmxbase
 INCLUDES:=-I/usr/local/natinst/nidaqmxbase/include/ 
-OBJECTS:=LN2_server.o msgtool.o lock.o crate.o
+OBJECTS:=LN2_server.o msgtool.o lock.o
 SRCS:=LN2_server.cpp msgtool.cpp lock.cpp output.cpp
 
 
@@ -11,7 +11,7 @@ all: no_nidaqmx
 LN2_server: $(OBJECTS) msgtool.h lock.h crate.h
 	$(CXX) -o  LN2_server  $(OBJECTS) $(CXXFLAGS) $(INCLUDES) $(NILIBS) $(ROOT) -lm -ldl
 	
-no_nidaqmx: $(OBJECTS) msgtool.h lock.h crate.h
+no_nidaqmx: $(OBJECTS) LN2_server.h msgtool.h lock.h crate.h
 	$(CXX) -o  LN2_server  $(OBJECTS) $(CXXFLAGS) $(INCLUDES) $(ROOT) -lm -ldl
 
 crate.o:crate.cpp crate.h

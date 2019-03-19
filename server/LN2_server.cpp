@@ -1,5 +1,6 @@
 #include "LN2_server.h"
 #include "crate.h"
+#include "crate.cpp"
 
 int main()
 {
@@ -10,9 +11,10 @@ int main()
   retval = crate->Boot();
   if (retval < 0)
     exit(retval);
-  crate->GetData(); //run the main loop
+
+  crate->MainLoop(s); //run the main loop
 
   free(s);
-  
+
   exit(EXIT_SUCCESS);
 }
