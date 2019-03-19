@@ -1,0 +1,40 @@
+RUN PARAMETER DATAFILE
+This tells the server what run parameters to use.
+Don't modify the line spacing of this file, or the server program will crash on startup.
+New parameters will be applied whenever the server program is restarted.
+
+First day of week for fill (0-6, sunday = 0):
+1
+Second day of week for fill (0-6, sunday = 0):
+4
+Hour of the day to start fill (0-24):
+11
+Minute of the above hour of the day to start fill (0-59):
+30
+Sensor threshold (in volts) that indicates an LN2 overflow:
+5
+Scale reading (in kg) below which the user is warned that tank is close to empty.
+185
+Integer amount of time between sensor readings when filling (more than 2000 milliseconds):
+5000
+Integer multiple of above time that determines frequency of sensor readings between fillings:
+12
+Integer number of measurements allowed above the sensor threshold before stopping LN2 flow:
+12
+Maximum length of time during which filling can take place before automatic shut-off of valves (s):
+1500
+Size of the data saving buffers (# of data points):
+1000
+Boolean (0=false, 1=true) determining if data will be automatically saved and uploaded after every fill:
+1
+Network OR local location to upload to (username@hostname:location):
+/home/LN2/public_html/LN2/
+Boolean (0=false, 1=true) telling program whether it should send alerts by e-mail:
+1
+E-mail address to send alerts to:
+fake_email@sfu.ca
+
+
+If autosave is enabled, the program will wait until 15% of the filling interval has passed after a fill before saving data.
+This lets each plot show the behaviour of the system after the fill is completed.
+

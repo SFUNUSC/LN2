@@ -1,0 +1,118 @@
+DETECTOR/TEMP. SENSOR/SCALE CONNECTION DATA
+This tells the server which detector is connected where.
+Don't modify the line spacing of this file, or the server program will crash on startup.
+New parameters will be applied whenever the server program is restarted.
+
+Number of valves/overlow sensors (1-20):
+1
+Number of temp. sensors (1-20):
+1
+DAQ input channel each detector's overflow sensor is connected to (aiX, X = ?):
+0
+0
+0
+0
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+DAQ output channel controlling each detector's valve (P0.X, X = ?):
+0
+0
+0
+0
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+DAQ input channel each temperature sensor is connected to (aiX, X = ?):
+1
+1
+1
+1
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+Sensor Box Port each temperature sensor is connected to (1-8) (for calibration purposes):
+2
+2
+2
+2
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+Number of fill cycles to wait before filling each detector:
+1
+1
+1
+1
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+DAQ input channel scale is connected to (aiX, X = ?):
+7
+Sensor box power supply voltage (V) (for sensor calibration):
+16.66

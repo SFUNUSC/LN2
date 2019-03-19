@@ -1,0 +1,42 @@
+TEMP./SCALE SENSOR CALIBRATION DATA
+This tells the server how to calculate the PT100 temperature sensor and scale readout values.
+The sensor box should contain a resistor in series with each sensor, and the DAQ should read voltage across each sensor.
+Don't modify the line spacing of this file, or the server program will crash on startup.
+New parameters will be applied whenever the server program is restarted.
+
+Sensor box power supply voltage (V):
+16.66
+Resistance of individual series resistors in sensor box (corresponding to sensors 1-20) (Ohm):
+6800
+7040
+6800
+6790
+6720
+6850
+6660
+6760
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+Fit parameters converting PT100 resistance R to temperature (T(K) = AR^2 + BR + C))
+A:
+0.0011547
+B:
+2.32335
+C:
+29.2446
+
+Fit parameters converting scale readout voltage V to weight in kg (weight = AV + B))
+A:
+224.047836
+B:
+0.0074602166

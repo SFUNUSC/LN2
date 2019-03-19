@@ -1,0 +1,7 @@
+*.o
+*.out
+LN2_server
+LN2_master
+client
+flush
+*~
