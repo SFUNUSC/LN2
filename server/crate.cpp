@@ -1026,10 +1026,12 @@ int Crate::readCalibration(void) {
 
 void Crate::readSchedule(FillSched *s){
 
-	char *tok;
+	char *tok,*tok2;
   char str[256];//string to be read from file (will be tokenized)
-  char line[256];
+  char fullLine[256], line[256];
+	int k;
 	int currentEntry=0;
+	int currentParameter=0;
 
 	FILE *schedfile = fopen("schedule.txt", "r");
 
@@ -1037,27 +1039,75 @@ void Crate::readSchedule(FillSched *s){
     {
 			if(fgets(str,256,schedfile)!=NULL) //get an entire line
 				{
-					//printf("%s\n",str); //print the line (debug)
-					strcpy(line,str); //store the entire line
-					tok=strtok (str,",");
-					tok[strcspn(tok, "\r\n")] = 0;//strips newline characters from the string
-					strcpy(s->sched[currentEntry].entryName,tok);
-					tok = strtok (NULL, "[");
-					if(tok!=NULL)
-						{
-							strcpy(line,tok);
-							if(strcmp(line,"valve")==0){
-								
-							}else if(strcmp(line,"time")==0){
-
-							}else{
-								printf("FILL SCHEDULE PARSING ERROR: wrong parameter (valid values are 'valve', 'time').\n");
-								exit(-1);
-							}
-							
+					strcpy(fullLine,str);
+					currentParameter=1;
+					while(true){
+							//printf("%s\n",str); //print the line (debug)
+						strcpy(str,fullLine);
+						tok=strtok (str,",");
+						if(currentParameter == 1){
+							tok[strcspn(tok, "\r\n")] = 0;//strips newline characters from the string
+							strcpy(s->sched[currentEntry].entryName,tok);
 						}
+
+						for(int i=0;i<currentParameter;i++){
+							if(i>0){
+								tok = strtok (NULL, "]");
+								tok = strtok (NULL, ",[");
+							}else{
+								tok = strtok (NULL, "[");
+							}
+						}
+
+						
+						if(tok!=NULL)
+							{
+								tok[strcspn(tok, "\r\n")] = 0;//strips newline characters from the string
+								strcpy(line,tok);
+								if(strcmp(line,"valve")==0){
+									tok = strtok (NULL, "]");
+									tok[strcspn(tok, "\r\n")] = 0;//strips newline characters from the string
+									strcpy(line,tok);
+									k=0;
+									tok2=strtok (line,",");
+									tok2[strcspn(tok2, "\r\n")] = 0;//strips newline characters from the string
+									while(tok2!=NULL){
+										if(k<MAXNUMVALVES){
+											s->sched[currentEntry].valves[k] = atoi(tok2);
+											tok2=strtok (NULL,",");
+											if(tok2!=NULL){
+												tok2[strcspn(tok2, "\r\n")] = 0;//strips newline characters from the string
+											}
+											k++;
+										}else{
+											printf("ERROR: Maximum number of valves (%i) exceeded in schedule entry %i.  Revise the number of valves used, or increase MAXNUMVALVES in LN2_server.h and try again.\n",MAXNUMVALVES,currentEntry+1);
+											exit(-1);
+										}
+									}
+									s->sched[currentEntry].numValves=k;
+								}else if(strcmp(line,"time")==0){
+									//tok = strtok (NULL, "]");
+									//strcpy(line,tok);
+									printf("here!\n");
+									
+								}else{
+									break;
+								}
+								
+							}else{
+								break;
+							}
+						currentParameter++;
+					}
+					
+					
+					
 				}
 			currentEntry++;
+			if(currentEntry >= MAXSCHEDENTRIES){
+				printf("ERROR: Maximum number of schedule entries (%i) exceeded.  Increase MAXSCHEDENTRIES in LN2_server.h and try again.\n",MAXSCHEDENTRIES);
+				exit(-1);
+			}
 		}
 
 	fclose(schedfile);
@@ -1065,9 +1115,15 @@ void Crate::readSchedule(FillSched *s){
 	//report on fill schedule info that was read in
 	printf("Fill schedule read. %i entries read.\n",currentEntry-1);
 	for(int i=0;i<currentEntry-1;i++){
-		printf("Entry %i name: %s\n",i+1,s->sched[i].entryName);
+		printf("Entry %i name: %s, Valve sequence: [",i+1,s->sched[i].entryName);
+		for (int j=0;j<s->sched[i].numValves;j++){
+			printf(" %i",s->sched[i].valves[j]);
+		}
+		printf(" ]\n");
 	}
 }
+
+
 
 /*Funtion which converts dewar temperature sensor voltage values into temperatures*/
 double
