@@ -16,6 +16,9 @@ typedef struct {
 		int numValves; //number of valves in the list
 		int schedMode; //0 to 6=specific day and time (0=sunday,1=monday,...), 7=interval in minutes
 		int schedHour,schedMin; //parameters for scheduling frequency(number of minutes, time of day, etc.)
+		int schedFlag; //1=fill has been triggered
+		int hasBeenTriggered; //0 if never triggered before
+		double lastTriggerTime; //time of last fill in minutes, used to determine whether to trigger a fill
 } SchedEntry;
 
 typedef struct {

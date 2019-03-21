@@ -80,7 +80,7 @@ int Crate::Boot(FillSched *s) {
 
   //last thing we do: we enable the msg queue
   msg = new MsgQ();
-  printf("Acquisition ready!\nType './master list' for a list of availiable commands.\n");
+  printf("Acquisition ready!\nType './LN2_master list' for a list of available commands.\nOr type './LN2_master begin' to start running.\n");
 
   return 1;
 }
@@ -88,6 +88,7 @@ int Crate::Boot(FillSched *s) {
 /*The main loop, in which data is acquired and saved.*/
 int Crate::MainLoop(FillSched *s) {
   int j = waiting_mult + 1;
+	double current_run_min;
   int day, hour, minute;
   struct tm *goodtime;
   time_t now;
@@ -104,40 +105,10 @@ int Crate::MainLoop(FillSched *s) {
     //if the acquisition is on
     if (signaled.RUNNING) {
       current_run_time = GetTime();
+			current_run_min = current_run_time/60.0;
+			//printf("minute: %f\n",current_run_min);
 
-      if (j >= waiting_mult) {
-        j = 0;
-        recordMeasurement();
-        //	printf("j >= waiting_mult \n");
-
-        if (atof(weightelement.value) < scale_threshold) {
-          if (messageAllow) {
-            printf("\nWARNING: scale reading is low.  LN2 dewar may need refilling.\n\n");
-            messageAllow = false;
-          }
-          if ((email == true) && (emailAllow == true)) {
-            emailAllow = false; //prevent spamming the poor user's inbox
-
-            /*Convert the email message into a C string that can be read as a terminal command*/
-            stringstream tmpcommand;
-            tmpcommand << "sh emailalert.sh "
-                       << "\"" << mailaddress << "\" "
-                       << "The LN2 tank scale reading is low.  The tank should be refilled soon.";
-            const std::string tmp = tmpcommand.str();
-            const char *command = tmp.c_str();
-            /*send email using external bash script*/
-            system(command);
-          }
-        } else {
-          emailAllow = true; //allow alert e-mails to be sent to the user again if scale reading is back to normal
-          messageAllow = true;
-        }
-      }
-      j += 1;
-
-      //	      printf("Value of j = %i \n", j);
-
-      if (((current_run_time + tfillelapsed) > (interval * 0.15)) && autosaveSwitch == true && autosave == true) {
+      /*if (((current_run_time + tfillelapsed) > (interval * 0.15)) && autosaveSwitch == true && autosave == true) {
         printf("autosaveData switch to false \n");
         autosaveData();
         autosaveSwitch = false; //doesn't allow program to autosave again until after next fill
@@ -146,7 +117,7 @@ int Crate::MainLoop(FillSched *s) {
       if (signaled.FILL == true) {
         printf("Fill initiated outside of the scheduled cycle\n");
         fillCycle();
-      }
+      }*/
 
       time(&now);
       goodtime = localtime(&now);
@@ -158,16 +129,44 @@ int Crate::MainLoop(FillSched *s) {
       minute = goodtime->tm_min;
       //printf("minute received %d\n", minute);
 
-      if ((day == fill_day1) || (day == fill_day2)) {
-        // printf("day condition fulfilled \n");
-        if (hour == fill_hour) {
-          //  printf("hour condition fulfilled \n");
-          if (minute == fill_min) {
-            //  printf("minute fulfilled \n");
-            fillCycle(); //start a fill cycle
-          }
-        }
-      }
+			//check for fill conditions
+      for (int i=0;i<s->numEntries;i++){
+				//only check entries which have not awaiting fill
+				if(s->sched[i].schedFlag==0){
+					if(s->sched[i].schedMode == 7){
+						//fill in a set interval (given in minutes)
+						if((current_run_min - s->sched[i].lastTriggerTime) > s->sched[i].schedMin){
+							printf("Triggering fill for %s.\n",s->sched[i].entryName);
+							s->sched[i].schedFlag=1; //set the fill flag
+							s->sched[i].lastTriggerTime = current_run_min;
+							s->sched[i].hasBeenTriggered = 1;
+						}
+					}else{
+						//fill on a day of the week
+						//check that the day of the week is correct
+						if(day==s->sched[i].schedMode){
+							//check that the time is correct
+							if(hour>=s->sched[i].schedHour){
+								if(minute>=s->sched[i].schedMin){
+									//check that we haven't already triggered a fill today
+									if( ((current_run_min - s->sched[i].lastTriggerTime) > 1500) || (s->sched[i].hasBeenTriggered == 0) ){
+										printf("Triggering fill for %s.\n",s->sched[i].entryName);
+										s->sched[i].schedFlag=1; //set the fill flag
+										s->sched[i].lastTriggerTime = current_run_min;
+										s->sched[i].hasBeenTriggered = 1;
+									}
+								}
+							}
+						}else{
+							//wrong day of the week
+							s->sched[i].schedFlag=0;
+						}
+					}
+				}
+				
+			}
+
+
 
       //wait for some interval
       usleep(polling_time);
@@ -1163,8 +1162,9 @@ void Crate::readSchedule(FillSched *s){
 	fclose(schedfile);
 
 	//report on fill schedule info that was read in
-	printf("\nFill schedule read. %i entries read.\n",currentEntry-1);
-	for(int i=0;i<currentEntry-1;i++){
+	s->numEntries = currentEntry-1;
+	printf("\nFill schedule read. %i entries read.\n",s->numEntries);
+	for(int i=0;i<s->numEntries;i++){
 		printf("Schedule entry %i: %s, Valve sequence: [",i+1,s->sched[i].entryName);
 		for (int j=0;j<s->sched[i].numValves;j++){
 			printf(" %i",s->sched[i].valves[j]);
