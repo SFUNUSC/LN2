@@ -14,8 +14,8 @@ typedef struct {
     char entryName[256]; //the name of the entry, shown when the entry is run
 		int valves[MAXNUMVALVES]; //list of valves to be opened, in the order they re opened in
 		int numValves; //number of valves in the list
-		int schedMode; //0 to 6=specific day and time (0=sunday,1=monday,...), 7=interval in minutes, 8=interval in hours
-		int schedFreqPar; //parameter for scheduling frequency(number of minutes, time of day, etc.)
+		int schedMode; //0 to 6=specific day and time (0=sunday,1=monday,...), 7=interval in minutes
+		int schedHour,schedMin; //parameters for scheduling frequency(number of minutes, time of day, etc.)
 } SchedEntry;
 
 typedef struct {

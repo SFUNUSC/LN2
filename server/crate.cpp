@@ -1032,6 +1032,7 @@ void Crate::readSchedule(FillSched *s){
 	int k;
 	int currentEntry=0;
 	int currentParameter=0;
+	int val=0;
 
 	FILE *schedfile = fopen("schedule.txt", "r");
 
@@ -1086,10 +1087,59 @@ void Crate::readSchedule(FillSched *s){
 									}
 									s->sched[currentEntry].numValves=k;
 								}else if(strcmp(line,"time")==0){
-									//tok = strtok (NULL, "]");
-									//strcpy(line,tok);
-									printf("here!\n");
+									tok = strtok (NULL, "]");
+									tok[strcspn(tok, "\r\n")] = 0;//strips newline characters from the string
+									strcpy(line,tok);
+									tok2=strtok (line,",");
+									tok2[strcspn(tok2, "\r\n")] = 0;//strips newline characters from the string
+									if(strcmp(tok2,"sunday")==0){
+										s->sched[currentEntry].schedMode=0;
+									}else if(strcmp(tok2,"monday")==0){
+										s->sched[currentEntry].schedMode=1;
+									}else if(strcmp(tok2,"tuesday")==0){
+										s->sched[currentEntry].schedMode=2;
+									}else if(strcmp(tok2,"wednesday")==0){
+										s->sched[currentEntry].schedMode=3;
+									}else if(strcmp(tok2,"thursday")==0){
+										s->sched[currentEntry].schedMode=4;
+									}else if(strcmp(tok2,"friday")==0){
+										s->sched[currentEntry].schedMode=5;
+									}else if(strcmp(tok2,"saturday")==0){
+										s->sched[currentEntry].schedMode=6;
+									}else if(strcmp(tok2,"by_minute")==0){
+										s->sched[currentEntry].schedMode=7;
+									}else{
+										printf("ERROR: Invalid schedule interval in schedule entry %i.  Valid values are [monday,tuesday,wednesday,thursday,friday,saturday,sunday,by_minute].\n",currentEntry+1);
+										exit(-1);
+									}
+									if(s->sched[currentEntry].schedMode==7){
+										//get the interval in minutes
+										tok2 = strtok (NULL, "]");
+										tok2[strcspn(tok2, "\r\n")] = 0;//strips newline characters from the string
+										s->sched[currentEntry].schedMin = atoi(tok2);
+									}else{
+										tok2 = strtok (NULL, ":");
+										tok2[strcspn(tok2, "\r\n")] = 0;//strips newline characters from the string
+										val=atoi(tok2);
+										if((val>23)||(val<0)){
+											printf("ERROR: Invalid hour specified in schedule entry %i.  Valid range is [0,23].\n",currentEntry+1);
+											exit(-1);
+										}else{
+											s->sched[currentEntry].schedHour = val;
+										}										
+										tok2 = strtok (NULL, "]");
+										tok2[strcspn(tok2, "\r\n")] = 0;//strips newline characters from the string
+										val=atoi(tok2);
+										if((val>59)||(val<0)){
+											printf("ERROR: Invalid minute specified in schedule entry %i.  Valid range is [0,59].\n",currentEntry+1);
+											exit(-1);
+										}else{
+											s->sched[currentEntry].schedMin = val;
+										}
+										
+									}
 									
+
 								}else{
 									break;
 								}
@@ -1113,14 +1163,35 @@ void Crate::readSchedule(FillSched *s){
 	fclose(schedfile);
 
 	//report on fill schedule info that was read in
-	printf("Fill schedule read. %i entries read.\n",currentEntry-1);
+	printf("\nFill schedule read. %i entries read.\n",currentEntry-1);
 	for(int i=0;i<currentEntry-1;i++){
-		printf("Entry %i name: %s, Valve sequence: [",i+1,s->sched[i].entryName);
+		printf("Schedule entry %i: %s, Valve sequence: [",i+1,s->sched[i].entryName);
 		for (int j=0;j<s->sched[i].numValves;j++){
 			printf(" %i",s->sched[i].valves[j]);
 		}
-		printf(" ]\n");
+		printf(" ], filling ");
+		if(s->sched[i].schedMode==0){
+			printf("every sunday at %.2i:%.2i.\n",s->sched[i].schedHour,s->sched[i].schedMin);
+		}else if(s->sched[i].schedMode==1){
+			printf("every monday at %.2i:%.2i.\n",s->sched[i].schedHour,s->sched[i].schedMin);
+		}else if(s->sched[i].schedMode==2){
+			printf("every tuesday at %.2i:%.2i.\n",s->sched[i].schedHour,s->sched[i].schedMin);
+		}else if(s->sched[i].schedMode==3){
+			printf("every wednesday at %.2i:%.2i.\n",s->sched[i].schedHour,s->sched[i].schedMin);
+		}else if(s->sched[i].schedMode==4){
+			printf("every thursday at %.2i:%.2i.\n",s->sched[i].schedHour,s->sched[i].schedMin);
+		}else if(s->sched[i].schedMode==5){
+			printf("every friday at %.2i:%.2i.\n",s->sched[i].schedHour,s->sched[i].schedMin);
+		}else if(s->sched[i].schedMode==6){
+			printf("every saturday at %.2i:%.2i.\n",s->sched[i].schedHour,s->sched[i].schedMin);
+		}else if(s->sched[i].schedMode==7){
+			printf("every %i minutes.\n",s->sched[i].schedMin);
+		}else{
+			printf("UNDEFINED\n");
+			exit(-1);
+		}
 	}
+	printf("\n");
 }
 
 
