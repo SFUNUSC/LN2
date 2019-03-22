@@ -65,13 +65,11 @@ public:
   int Save(FillSched*, char*);
   int NetSave(FillSched*, char*);
   int ChanOn(int chan);
-  int GEARBOXChanOn(void);
   int ChanOff(void);
   int getPlot(FillSched*);
   float Measure(int channel);
   double GetTime(void);
-  int fillCycle(FillSched*,int);
-  int fillGEARBOX(void);
+  int fill(FillSched*,int);
   int autosaveData(FillSched*);
   int readParameters(void);
   int readConnections(void);
@@ -101,12 +99,11 @@ private:
 	uInt32      w_data[write_ports];
 	int32       written;*/
 
-	struct timeb tstart,tstop,pstart,pstop,tcurrent,tfillstart;
+	struct timeb tstart,tstop,pstart,pstop,tcurrent;
 	double paused;
 	float meas;
 	double run_time;
 	double current_run_time;
-	double tfillelapsed; //amount of time spent during a fill
 	float reading;
 	char tmp [200]; //for temporary storage of content in parameter file
 	bool emailAllow; //trigger to allow or disallow e-mail, set by program
@@ -130,8 +127,6 @@ private:
 	//cooling system component value declarations
 	int numValves; //number of valves/overflow sensors used in the setup
 	int valveOutputs [20]; //array of output DAQ channels for each valve
-	int detectorFillCounter [20]; //counter for number of fill cycles to wait before filling each detector
-	int cycleCounter [20]; //counter for number of fill cycles since last fill
 	int scaleInput; //input DAQ channel for the scale reading
 	
 	//Sensor calibration parameter declarations

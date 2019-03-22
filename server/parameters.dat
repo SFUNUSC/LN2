@@ -8,7 +8,7 @@ Sensor threshold (in volts) that indicates an LN2 overflow:
 Scale reading (in kg) below which the user is warned that tank is close to empty.
 185
 Integer amount of time between sensor readings when not filling (more than 2000 milliseconds):
-60000
+10000
 Integer number of measurements allowed above the sensor threshold before stopping LN2 flow:
 12
 Maximum length of time during which filling can take place before automatic shut-off of valves (s):
@@ -20,9 +20,9 @@ Boolean (0=false, 1=true) determining if data will be automatically saved and up
 Network OR local location to upload to (username@hostname:location):
 /home/LN2/public_html/LN2/
 Boolean (0=false, 1=true) telling program whether it should send alerts by e-mail:
-1
+0
 E-mail address to send alerts to:
-fake_email@sfu.ca
+fake_email
 
 
 If autosave is enabled, the program will wait until 15% of the filling interval has passed after a fill before saving data.

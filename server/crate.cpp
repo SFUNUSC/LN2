@@ -71,11 +71,6 @@ int Crate::Boot(FillSched *s) {
   emailAllow = true;
   messageAllow = true;
 
-  //initialize timing vars and counters
-  tfillelapsed = 0;
-  for (int i = 0; i < 20; i++)
-    cycleCounter[i] = detectorFillCounter[i] - 1; //reset counter of fill cycles
-
   //last thing we do: we enable the msg queue
   msg = new MsgQ();
   printf("Acquisition ready!\nType './LN2_master list' for a list of available commands.\nOr type './LN2_master begin' to start running.\n");
@@ -113,7 +108,7 @@ int Crate::MainLoop(FillSched *s) {
 
       if (signaled.FILL == true) {
         printf("Fill initiated outside of the scheduled cycle\n");
-        fillCycle();
+        fill();
       }*/
 
       time(&now);
@@ -134,7 +129,7 @@ int Crate::MainLoop(FillSched *s) {
 					if(s->sched[i].schedMode == 7){
 						//fill in a set interval (given in minutes)
 						if((current_run_min - s->sched[i].lastTriggerTime) > s->sched[i].schedMin){
-							printf("Triggering fill for %s.\n",s->sched[i].entryName);
+							printf("Scheduling fill for %s ...\n",s->sched[i].entryName);
 							s->sched[i].schedFlag=1; //set the fill flag
 							s->sched[i].lastTriggerTime = current_run_min;
 							s->sched[i].hasBeenTriggered = 1;
@@ -148,7 +143,7 @@ int Crate::MainLoop(FillSched *s) {
 								if(minute>=s->sched[i].schedMin){
 									//check that we haven't already triggered a fill today
 									if( ((current_run_min - s->sched[i].lastTriggerTime) > 1500) || (s->sched[i].hasBeenTriggered == 0) ){
-										printf("Triggering fill for %s.\n",s->sched[i].entryName);
+										printf("Scheduling fill for %s ...\n",s->sched[i].entryName);
 										s->sched[i].schedFlag=1; //set the fill flag
 										s->sched[i].lastTriggerTime = current_run_min;
 										s->sched[i].hasBeenTriggered = 1;
@@ -167,7 +162,8 @@ int Crate::MainLoop(FillSched *s) {
       //PERFORM FILLING
       for (int i=0;i<s->numEntries;i++){
         if(s->sched[i].schedFlag){
-          fillCycle(s,i); //start the fill cycle
+          signaled.FILLING = true;
+          fill(s,i); //start the fill cycle
         }
       }
 
@@ -184,7 +180,6 @@ void Crate::ProcessSignal(FillSched* s) {
   if (signaled.BEGIN) {
     signaled.BEGIN = false;
     if (signaled.RUNNING == false) {
-      printf("Beginning run ...\n\n");
       BeginRun();
     } else
       printf("Run started already, command ignored\n");
@@ -340,11 +335,6 @@ int Crate::EndRun(FillSched* s) {
   if (autosave == true) {
     autosaveData(s); //save data from end of run
   }
-
-  //reset timing vars and counters for future runs
-  tfillelapsed = 0;
-  for (int i = 0; i < 20; i++)
-    cycleCounter[i] = detectorFillCounter[i] - 1; //reset counter of fill cycles
 
   return 1;
 }
@@ -510,6 +500,8 @@ int Crate::NetSave(FillSched* s, char *filename) {
 /*----------------------------------------------------------*/
 int Crate::ChanOn(int chan) {
 
+  printf("Turning on channel %i.\n",chan);
+
   /*int32 error = 0;
   TaskHandle taskHandle = 0;
   uInt32 data[1] = {0}; //all channels off by default
@@ -542,53 +534,11 @@ Error:
   //getchar();*/
   return 1;
 }
-/*------------------------------------------------------------*/
-/*Functions controlling the DAQ------------------------------*/
-/*----------------------------------------------------------*/
-int Crate::GEARBOXChanOn(void) {
-
-  /*int32 error = 0;
-  TaskHandle taskHandle = 0;
-  uInt32 data[1] = {0}; //all channels off by default
-  int chan;
-
-  chan = 0;
-  data[0] = 1 << chan; //turn on channel 0, leave others off
-  chan = 1;
-  data[0] |= 1 << chan; //turn on channel 1, leave others off
-  chan = 3;
-  data[0] |= 1 << chan; //turn on channel 3, leave others off
-  chan = 5;
-  data[0] |= 1 << chan; //turn on channel 5, leave others off
-
-  char errBuff[2048] = {'\0'};
-
-  // DAQmx Configure Code
-  DAQmxErrChk(DAQmxBaseCreateTask("", &taskHandle));
-  DAQmxErrChk(DAQmxBaseCreateDOChan(taskHandle, "Dev1/port0", "", DAQmx_Val_ChanForAllLines));
-
-  // DAQmx Start Code
-  DAQmxErrChk(DAQmxBaseStartTask(taskHandle));
-
-  // DAQmx Write Code
-  DAQmxErrChk(DAQmxBaseWriteDigitalU32(taskHandle, 1, 1, 10.0, DAQmx_Val_GroupByChannel, data, NULL, NULL));
-
-Error:
-  if (DAQmxFailed(error))
-    DAQmxBaseGetExtendedErrorInfo(errBuff, 2048);
-  if (taskHandle != 0) {
-    // DAQmx Stop Code
-    DAQmxBaseStopTask(taskHandle);
-    DAQmxBaseClearTask(taskHandle);
-  }
-  if (DAQmxFailed(error))
-    printf("DAQmx Error: %s\n", errBuff);
-  printf("Switch turned on.\n\n");
-  //getchar();*/
-  return 1;
-}
 /*--------------------------------------------------------------*/
 int Crate::ChanOff(void) {
+
+  printf("Turning off all channels.\n");
+
   /*int32 error = 0;
   TaskHandle taskHandle = 0;
   uInt8 data[8] = {0, 0, 0, 0, 0, 0, 0, 0};
@@ -670,7 +620,7 @@ Error:
 
   avg = avg / numMeasurements;
   return avg;*/
-	return 0;
+	return 10.0;
 }
 
 /*------------------------------------------------------------*/
@@ -685,7 +635,7 @@ Error:
   // valve 5: valve blocking the outlet from the GEARBOX
   // GEARBOX sensor is on channel 0, input from the parameter file is ignored
   // scale sensor is on channel 7
-int Crate::fillCycle(FillSched *s, int schedEntry) {
+int Crate::fill(FillSched *s, int schedEntry) {
 
   if((schedEntry >= s->numEntries)||(schedEntry < 0)){
     printf("ERROR: Invalid fill schedule entry (%i)!\n",schedEntry);
@@ -694,21 +644,24 @@ int Crate::fillCycle(FillSched *s, int schedEntry) {
 
   autosaveSwitch = true; //allows program to autosave again after fill
 
+  //set up timer
+  ftime(&tcurrent);
+  double tfillstart = GetTime(); //reset fill timer
+  double tfillelapsed = GetTime() - tfillstart;
+
   //print a different message depending on whether the user started fill process manually
   if (signaled.FILL == true)
-    printf("\nManual fill requested for %s.  Starting fill noe ... \n\n",s->sched[schedEntry].entryName);
+    printf("\nManual fill requested for %s.  Starting fill at: %s \n",s->sched[schedEntry].entryName,ctime(&tcurrent.time));
   else
-    printf("\nStarting fill for %s ... \n\n",s->sched[schedEntry].entryName);
+    printf("\nStarting fill for %s at: %s \n",s->sched[schedEntry].entryName,ctime(&tcurrent.time));
   signaled.FILL = false;
 
-  //set up timer
-  ftime(&tfillstart); //reset fill timer
-  tfillelapsed = 0;
+  
 
   //turn on all valves, in order
   for(int i=0;i<s->sched[schedEntry].numValves;i++){
-    ChanOn(s->sched[schedEntry].valves[i]);
     usleep(1000000); //wait a bit so that switching between valves isn't instantaneous
+    ChanOn(s->sched[schedEntry].valves[i]);
   }
 
   //check voltage while filling, and allow viewer to stop filling with the end command
@@ -730,9 +683,7 @@ int Crate::fillCycle(FillSched *s, int schedEntry) {
     }
 
     //figure out how much time has elapsed since filling started
-    ftime(&tcurrent);
-    tfillelapsed = tcurrent.millitm - tfillstart.millitm;
-    tfillelapsed = tfillelapsed / 1000 + tcurrent.time - tfillstart.time;
+    tfillelapsed = GetTime() - tfillstart;
     if (tfillelapsed > maxfilltime) {
       printf("\nSensor voltage threshold is not being reached.  Threshold may be set poorly, or perhaps LN2 tank is empty.\nAborting run ...\n");
 
@@ -771,51 +722,19 @@ int Crate::fillCycle(FillSched *s, int schedEntry) {
       system(command);
     }
 
-    s->sched[schedEntry].schedFlag=0; //reset the fill flag
-
   } else {
-    printf("\nFilling stopped partway.  Turning off DAQ switch ... \n\n");
+    printf("\nFilling stopped partway, closing all valves ... \n\n");
   }
 
   ChanOff(); //close all valves
-  signaled.RUNNING = false;
+  usleep(1000000); //wait a bit so that switching between valves isn't instantaneous
+
+  s->sched[schedEntry].schedFlag=0; //reset the fill flag
   ProcessSignal(s);
 
   return 1;
 }
 
-/*-----------------------------------------------*/
-/*Fill GEARBOX during a fill cycle*/
-/*---------------------------------------------*/
-/*int Crate::fillGEARBOX(void) {
-  // KS modified Fri. Dec. 21, 2018, for the GEARBOX fill only
-  
-  int valve;
-  valve = 3;
-  signaled.FILLING = true;
-
-  cycleCounter[valve] += 1;
-
-  if (cycleCounter[valve] == detectorFillCounter[valve]) {
-    cycleCounter[valve] = 0;
-
-    usleep(5000000); //wait a few seconds before turning on the valve so that switching between valves isn't instantaneous
-
-    GEARBOXChanOn(); //turn on the fill on GEARBOX valves
-    int inum = 0;
-
-    
-    
-
-    ChanOff(); //turn off the valve
-
-  } else {
-    printf("Fill cycle was skipped on valve %i.\n", valve);
-  }
-
-  return 1;
-}*/
-/*--------------------------------------------------------------*/
 int Crate::autosaveData(FillSched* s) {
   printf("\n Autosaving data ...\n\n");
 
@@ -883,11 +802,14 @@ int Crate::readParameters(void) {
   fgets(tmp, 200, parfile); //advance a line
   fscanf(parfile, "%s", tmp);
   email = atoi(tmp);
-  printf("Email to send alerts to = %i \n", email);
   fgets(tmp, 200, parfile); //end the line
   fgets(tmp, 200, parfile); //advance a line
   fscanf(parfile, "%s", mailaddress);
-  printf("Alert email = %s\n", mailaddress);
+  if(email){
+    printf("Will send email alerts to %s\n", mailaddress);
+  }else{
+    printf("Will not send email alerts.\n", email);
+  }
 
   printf("File 'parameters.dat' read sucessfully!\n");
 
@@ -1034,7 +956,8 @@ void Crate::readSchedule(FillSched *s){
 					strcpy(fullLine,str);
 					currentParameter=1;
 					while(true){
-							//printf("%s\n",str); //print the line (debug)
+						//printf("%s\n",str); //print the line (debug)
+            s->sched[currentEntry].lastTriggerTime = 0.0;
 						strcpy(str,fullLine);
 						tok=strtok (str,",");
 						if(currentParameter == 1){
@@ -1160,7 +1083,7 @@ void Crate::readSchedule(FillSched *s){
 
 	//report on fill schedule info that was read in
 	s->numEntries = currentEntry-1;
-	printf("\nFill schedule read. %i entries read.\n",s->numEntries);
+	printf("\nFill schedule read. %i entries found.\n",s->numEntries);
 	for(int i=0;i<s->numEntries;i++){
 		printf("Schedule entry %i: %s, valves: [",i+1,s->sched[i].entryName);
 		for (int j=0;j<s->sched[i].numValves;j++){
@@ -1182,7 +1105,7 @@ void Crate::readSchedule(FillSched *s){
 		}else if(s->sched[i].schedMode==6){
 			printf("every saturday at %.2i:%.2i.\n",s->sched[i].schedHour,s->sched[i].schedMin);
 		}else if(s->sched[i].schedMode==7){
-			printf("every %i minutes.\n",s->sched[i].schedMin);
+			printf("every %i minute(s).\n",s->sched[i].schedMin);
 		}else{
 			printf("UNDEFINED\n");
 			exit(-1);

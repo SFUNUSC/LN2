@@ -1,3 +1,5 @@
 GEARS,valve[0,1,3,5],overflow_sensor[1],time[monday,12:00]
-GEARS,valve[0,1,3,5],overflow_sensor[1],time[thursday,16:00]
+GEARS_time,valve[0,1,3,5],overflow_sensor[1],time[friday,14:23]
 CSS,valve[0,1,4],overflow_sensor[1],time[by_minute,1]
+GEARS,valve[0,1,3,5],overflow_sensor[1],time[by_minute,1]
+The Detector Which Will Save Western Civilization,valve[0,1],overflow_sensor[1],time[by_minute,2]
