@@ -3,7 +3,8 @@
 #include <string>
 #include <cstdio>
 #include <cstdlib>
-//#include <NIDAQmxBase.h>
+#include <sstream>
+#include <NIDAQmxBase.h>
 using namespace std;
 
 #define read_ports 2

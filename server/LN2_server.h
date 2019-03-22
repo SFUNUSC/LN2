@@ -1,4 +1,3 @@
-#include <sstream>
 #include <sys/timeb.h>
 #include <stdio.h>
 #include "msgtool.h"
