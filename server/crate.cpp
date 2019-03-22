@@ -200,16 +200,16 @@ void Crate::ProcessSignal(FillSched* s) {
   if (signaled.ON) {
     signaled.ON = false;
     printf(".");
-    ChanOn(atoi(masterParam)); //turn specified DAQ channel on
+    chanOn(atoi(masterParam)); //turn specified DAQ channel on
     printf(".");
   }
   if (signaled.OFF) {
     signaled.OFF = false;
-    ChanOff(); //turn DAQ channels off
+    chanOff(); //turn DAQ channels off
   }
   if (signaled.MEASURE) {
     signaled.MEASURE = false;
-    meas = Measure(atoi(masterParam)); //measure voltage
+    meas = measure(atoi(masterParam)); //measure voltage
     printf("Average voltage value is %10.5f\n", meas);
   }
   if (signaled.PLOT) {
@@ -245,7 +245,7 @@ void Crate::ProcessSignal(FillSched* s) {
   if (signaled.EXIT) {
     if (signaled.FILLING == true) {
       printf("\nFilling stopped partway.  Turning off DAQ switch ... \n\n");
-      ChanOff(); //make sure DAQ switch is off
+      chanOff(); //make sure DAQ switch is off
     }
     if (signaled.RUNNING)
       EndRun(s);
@@ -357,8 +357,8 @@ int Crate::recordMeasurement(FillSched *s) {
   ts = current_time;
   ts *= 1000000000;
   //	printf("current time %ld time stame %lld\n",current_time,ts);
-  weightV = Measure(scaleInput);
-  sensor = Measure(s->sched[0].overflowSensor);
+  weightV = measure(scaleInput);
+  sensor = measure(s->sched[0].overflowSensor);
   weight = findWeight(weightV);
 
   //save real time to buffer
@@ -390,7 +390,7 @@ int Crate::recordMeasurement(FillSched *s) {
 
   for (int i = 0; i < s->numEntries; i++) {
     //save overflow sensor measurement to buffer
-    sprintf(sensorValue[i].value, "%f", Measure(s->sched[i].overflowSensor));
+    sprintf(sensorValue[i].value, "%f", measure(s->sched[i].overflowSensor));
     cbWrite(&sensorBuffer[i], &sensorValue[i]);
   }
 
@@ -661,7 +661,7 @@ int Crate::fill(FillSched *s, int schedEntry) {
   //turn on all valves, in order
   for(int i=0;i<s->sched[schedEntry].numValves;i++){
     usleep(1000000); //wait a bit so that switching between valves isn't instantaneous
-    ChanOn(s->sched[schedEntry].valves[i]);
+    chanOn(s->sched[schedEntry].valves[i]);
   }
 
   //check voltage while filling, and allow viewer to stop filling with the end command
@@ -671,7 +671,7 @@ int Crate::fill(FillSched *s, int schedEntry) {
     usleep(1000000); //wait 1s
     current_run_time = GetTime();
     printf("current run time %f \n", current_run_time);
-    reading = Measure(s->sched[schedEntry].overflowSensor); //measure voltage on overflow sensor
+    reading = measure(s->sched[schedEntry].overflowSensor); //measure voltage on overflow sensor
     printf("Sensor reading is %10.3f V\n", reading);
     if (reading > threshold)
       inum++;
@@ -726,7 +726,7 @@ int Crate::fill(FillSched *s, int schedEntry) {
     printf("\nFilling stopped partway, closing all valves ... \n\n");
   }
 
-  ChanOff(); //close all valves
+  chanOff(); //close all valves
   usleep(1000000); //wait a bit so that switching between valves isn't instantaneous
 
   s->sched[schedEntry].schedFlag=0; //reset the fill flag

@@ -9,6 +9,11 @@
 #define MAXNUMVALVES 8
 #define MAXSCHEDENTRIES 256
 
+//valve and sensor measurement functions which should be implemented for any DAQ used with this code
+int chanOn(int);
+int chanOff();
+float measure(int);
+
 //data structures for fill schedule
 typedef struct {
     char entryName[256]; //the name of the entry, shown when the entry is run
