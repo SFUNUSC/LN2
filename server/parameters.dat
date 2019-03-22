@@ -3,22 +3,12 @@ This tells the server what run parameters to use.
 Don't modify the line spacing of this file, or the server program will crash on startup.
 New parameters will be applied whenever the server program is restarted.
 
-First day of week for fill (0-6, sunday = 0):
-1
-Second day of week for fill (0-6, sunday = 0):
-4
-Hour of the day to start fill (0-24):
-11
-Minute of the above hour of the day to start fill (0-59):
-30
 Sensor threshold (in volts) that indicates an LN2 overflow:
 5
 Scale reading (in kg) below which the user is warned that tank is close to empty.
 185
-Integer amount of time between sensor readings when filling (more than 2000 milliseconds):
-5000
-Integer multiple of above time that determines frequency of sensor readings between fillings:
-12
+Integer amount of time between sensor readings when not filling (more than 2000 milliseconds):
+60000
 Integer number of measurements allowed above the sensor threshold before stopping LN2 flow:
 12
 Maximum length of time during which filling can take place before automatic shut-off of valves (s):

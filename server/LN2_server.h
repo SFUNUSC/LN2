@@ -13,6 +13,7 @@
 typedef struct {
     char entryName[256]; //the name of the entry, shown when the entry is run
 		int valves[MAXNUMVALVES]; //list of valves to be opened, in the order they re opened in
+		int overflowSensor; //overflow (temperature) sensor input
 		int numValves; //number of valves in the list
 		int schedMode; //0 to 6=specific day and time (0=sunday,1=monday,...), 7=interval in minutes
 		int schedHour,schedMin; //parameters for scheduling frequency(number of minutes, time of day, etc.)
@@ -53,25 +54,25 @@ public:
   ~Crate();
   int Boot(FillSched*);
   int MainLoop(FillSched*);
-  int recordMeasurement(void);
+  int recordMeasurement(FillSched*);
   void ReadCommand (struct Signals*, char*);
-  void ProcessSignal (void);
+  void ProcessSignal (FillSched*);
   int BeginRun(void);
-  int EndRun(void);
+  int EndRun(FillSched*);
   int PauseRun(void);
   int ResumeRun(void);
   int ClearSpectrum(void);
-  int Save(char* filename);
-  int NetSave(char* filename);
+  int Save(FillSched*, char*);
+  int NetSave(FillSched*, char*);
   int ChanOn(int chan);
   int GEARBOXChanOn(void);
   int ChanOff(void);
-  int getPlot(void);
+  int getPlot(FillSched*);
   float Measure(int channel);
   double GetTime(void);
-  int fillCycle(void);
+  int fillCycle(FillSched*,int);
   int fillGEARBOX(void);
-  int autosaveData(void);
+  int autosaveData(FillSched*);
   int readParameters(void);
   int readConnections(void);
   int readCalibration(void);
@@ -105,7 +106,6 @@ private:
 	float meas;
 	double run_time;
 	double current_run_time;
-	double prev_run_time;
 	double tfillelapsed; //amount of time spent during a fill
 	float reading;
 	char tmp [200]; //for temporary storage of content in parameter file
@@ -113,15 +113,9 @@ private:
 	bool messageAllow; //trigger to allow or disallow messages, set by program
 	
 	//Run parameter declarations
-	double interval; //default interval between fillings, in seconds
-	int fill_day1; //First day of the week for filling
-	int fill_day2; //Second day of week for filling
-	int fill_hour; //Hour of the day for filling
-	int fill_min; //Minute of the hour of the day for filling
 	double threshold; //the sensor threshold (in volts) that indicates an overflow
 	double scale_threshold; //scale sensor threshold which triggers a warning that the LN2 tank is close to empty
-	int polling_time; //the amount of time (in microseconds) between sensor readings during filling
-	int waiting_mult; //multiple of polling time that determines frequency of data saving between fillings
+	int polling_time; //the amount of time (in microseconds) between sensor readings when not filling
 	int iterations; //number of measurements allowed above the sensor threshold before stopping LN2 flow
 	double maxfilltime; //maximum length of time (in seconds) during which filling can take place before automatic shut-off of valves
 	int circBufferSize; //size of the circular buffers (# of data points)
@@ -135,11 +129,7 @@ private:
 	
 	//cooling system component value declarations
 	int numValves; //number of valves/overflow sensors used in the setup
-	int numTempSensors; //number of temperature sensors used in the setup
-	int detectorInputs [20]; //array of input DAQ channels for each detector
 	int valveOutputs [20]; //array of output DAQ channels for each valve
-	int tempSensorInputs [20]; //array of input DAQ channels for each temperature sensor
-	int tempSensorBoxPorts [20]; //array of sensor box ports for each temperature sensor
 	int detectorFillCounter [20]; //counter for number of fill cycles to wait before filling each detector
 	int cycleCounter [20]; //counter for number of fill cycles since last fill
 	int scaleInput; //input DAQ channel for the scale reading

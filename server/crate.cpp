@@ -10,15 +10,15 @@ int autosaveCounter = 0; //counter for number of autosaves completed since run s
 CircularBuffer rtbuffer;         //buffer for storing local time strings
 CircularBuffer tbuffer;          //buffer for storing time since run start
 CircularBuffer weightbuffer;     //buffer for storing voltage readings from scale (to track LN2 tank weight)
-CircularBuffer sensorBuffer[20]; //buffers for storing voltage readings from LN2 sensors
-CircularBuffer tempBuffer[20];   //buffers for storing temperature readings from detector readouts
+CircularBuffer sensorBuffer[MAXSCHEDENTRIES]; //buffers for storing voltage readings from LN2 sensors
+CircularBuffer tempBuffer[MAXSCHEDENTRIES];   //buffers for storing temperature readings from detector readouts
 
 /* Declare elements corresponding to each buffer */
 ElemType rtelement;
 ElemType telement;
 ElemType weightelement;
-ElemType sensorValue[20];
-ElemType tempValue[20];
+ElemType sensorValue[MAXSCHEDENTRIES];
+ElemType tempValue[MAXSCHEDENTRIES];
 
 influx_client_t c;
 
@@ -54,7 +54,6 @@ int Crate::Boot(FillSched *s) {
   l = new lock("LN2");
 
   readParameters();  //get parameters for run from file
-  readConnections(); //get system component data from file
   readCalibration(); //get sensor calibration data from file
 	readSchedule(s); //read in the filling schedule
 
@@ -62,10 +61,10 @@ int Crate::Boot(FillSched *s) {
   cbInit(&rtbuffer, circBufferSize);
   cbInit(&tbuffer, circBufferSize);
   cbInit(&weightbuffer, circBufferSize);
-  for (int i = 0; i < numValves; i++) {
+  for (int i = 0; i < s->numEntries; i++) {
     cbInit(&sensorBuffer[i], circBufferSize);
   }
-  for (int i = 0; i < numTempSensors; i++) {
+  for (int i = 0; i < s->numEntries; i++) {
     cbInit(&tempBuffer[i], circBufferSize);
   }
 
@@ -74,7 +73,6 @@ int Crate::Boot(FillSched *s) {
 
   //initialize timing vars and counters
   tfillelapsed = 0;
-  prev_run_time = 0;
   for (int i = 0; i < 20; i++)
     cycleCounter[i] = detectorFillCounter[i] - 1; //reset counter of fill cycles
 
@@ -87,7 +85,6 @@ int Crate::Boot(FillSched *s) {
 /***********************************************************************************/
 /*The main loop, in which data is acquired and saved.*/
 int Crate::MainLoop(FillSched *s) {
-  int j = waiting_mult + 1;
 	double current_run_min;
   int day, hour, minute;
   struct tm *goodtime;
@@ -100,7 +97,7 @@ int Crate::MainLoop(FillSched *s) {
     //check the msg queue
     if (msg->read(command) == 1) {
       ReadCommand(&signaled, command);
-      ProcessSignal();
+      ProcessSignal(s);
     }
     //if the acquisition is on
     if (signaled.RUNNING) {
@@ -129,6 +126,7 @@ int Crate::MainLoop(FillSched *s) {
       minute = goodtime->tm_min;
       //printf("minute received %d\n", minute);
 
+			//SCHEDULE FILLING
 			//check for fill conditions
       for (int i=0;i<s->numEntries;i++){
 				//only check entries which have not awaiting fill
@@ -166,7 +164,12 @@ int Crate::MainLoop(FillSched *s) {
 				
 			}
 
-
+      //PERFORM FILLING
+      for (int i=0;i<s->numEntries;i++){
+        if(s->sched[i].schedFlag){
+          fillCycle(s,i); //start the fill cycle
+        }
+      }
 
       //wait for some interval
       usleep(polling_time);
@@ -177,11 +180,11 @@ int Crate::MainLoop(FillSched *s) {
 
 /*--------------------------------------------------------------*/
 
-void Crate::ProcessSignal() {
+void Crate::ProcessSignal(FillSched* s) {
   if (signaled.BEGIN) {
     signaled.BEGIN = false;
     if (signaled.RUNNING == false) {
-      printf("Dewar(s) will be filled after %10.0f seconds\n\n", interval);
+      printf("Beginning run ...\n\n");
       BeginRun();
     } else
       printf("Run started already, command ignored\n");
@@ -195,7 +198,7 @@ void Crate::ProcessSignal() {
     signaled.END = false;
     signaled.FILLING = false;
     if (signaled.RUNNING == true)
-      EndRun();
+      EndRun(s);
     else
       printf("Run ended already, command ignored\n");
   }
@@ -216,15 +219,15 @@ void Crate::ProcessSignal() {
   }
   if (signaled.PLOT) {
     signaled.PLOT = false;
-    getPlot();
+    getPlot(s);
   }
   if (signaled.SAVE) {
     signaled.SAVE = false;
-    Save(filename);
+    Save(s,filename);
   }
   if (signaled.NETSAVE) {
     signaled.NETSAVE = false;
-    NetSave(filename);
+    NetSave(s,filename);
   }
   if (signaled.LIST) {
     signaled.LIST = false;
@@ -250,7 +253,7 @@ void Crate::ProcessSignal() {
       ChanOff(); //make sure DAQ switch is off
     }
     if (signaled.RUNNING)
-      EndRun();
+      EndRun(s);
     l->unlock();
     delete l;
     exit(EXIT_SUCCESS);
@@ -327,19 +330,18 @@ int Crate::BeginRun(void) {
   return 1;
 }
 /*--------------------------------------------------------------*/
-int Crate::EndRun(void) {
+int Crate::EndRun(FillSched* s) {
   ftime(&tstop);
   printf("Run end at %s\n", ctime(&tstop.time));
   current_run_time = GetTime();
   printf("Ending acquisition\n");
-  printf("Run time %15.3f [s]\n", current_run_time + prev_run_time);
+  printf("Run time %15.3f [s]\n", current_run_time);
   signaled.RUNNING = false;
   if (autosave == true) {
-    autosaveData(); //save data from end of run
+    autosaveData(s); //save data from end of run
   }
 
   //reset timing vars and counters for future runs
-  prev_run_time = 0;
   tfillelapsed = 0;
   for (int i = 0; i < 20; i++)
     cycleCounter[i] = detectorFillCounter[i] - 1; //reset counter of fill cycles
@@ -356,7 +358,7 @@ Crate::GetTime(void) {
   return telapsed;
 }
 /*Function which records current sensor values in circular buffers*/
-int Crate::recordMeasurement(void) {
+int Crate::recordMeasurement(FillSched *s) {
   double weightV, weight, sensor;
   time_t current_time;
   long long ts;
@@ -366,14 +368,14 @@ int Crate::recordMeasurement(void) {
   ts *= 1000000000;
   //	printf("current time %ld time stame %lld\n",current_time,ts);
   weightV = Measure(scaleInput);
-  sensor = Measure(detectorInputs[0]);
+  sensor = Measure(s->sched[0].overflowSensor);
   weight = findWeight(weightV);
 
   //save real time to buffer
   strftime(rtelement.value, 80, "%d-%m-%Y,%H:%M:%S", localtime(&tcurrent.time));
   cbWrite(&rtbuffer, &rtelement);
   //save run time to buffer
-  sprintf(telement.value, "%f", current_run_time + prev_run_time);
+  sprintf(telement.value, "%f", current_run_time);
   cbWrite(&tbuffer, &telement);
   //save scale sensor measurement to buffer
   sprintf(weightelement.value, "%f", weight);
@@ -396,28 +398,28 @@ int Crate::recordMeasurement(void) {
             INFLUX_TS(ts),
             INFLUX_END);
 
-  for (int i = 0; i < numValves; i++) {
+  for (int i = 0; i < s->numEntries; i++) {
     //save overflow sensor measurement to buffer
-    sprintf(sensorValue[i].value, "%f", Measure(detectorInputs[i]));
+    sprintf(sensorValue[i].value, "%f", Measure(s->sched[i].overflowSensor));
     cbWrite(&sensorBuffer[i], &sensorValue[i]);
   }
 
-  for (int i = 0; i < numTempSensors; i++) {
+  /*for (int i = 0; i < numTempSensors; i++) {
     //save temperature measurement to buffer
     sprintf(tempValue[i].value, "%f", findTemp(Measure(tempSensorInputs[i]), tempSensorBoxPorts[i]));
     cbWrite(&tempBuffer[i], &tempValue[i]);
-  }
+  }*/
 
   return 1;
 }
 /*Function which prints a table of sensor values to the command line*/
-int Crate::getPlot(void) {
+int Crate::getPlot(FillSched *s) {
 
   printf("Real Time		Run Time (s)	Scale Sensor (V)	");
-  for (int i = 0; i < numValves; i++) {
+  for (int i = 0; i < s->numEntries; i++) {
     printf("Sensor %i (V)	", i + 1);
   }
-  for (int i = 0; i < numTempSensors; i++) {
+  for (int i = 0; i < s->numEntries; i++) {
     printf("Temp. Sensor %i (K)	", i + 1);
   }
   printf("\n"); //Line break at end
@@ -432,12 +434,12 @@ int Crate::getPlot(void) {
     cbWrite(&rtbuffer, &rtelement);                                                           //put values that were just read back in buffers so that they can be read again
     cbWrite(&tbuffer, &telement);
     cbWrite(&weightbuffer, &weightelement);
-    for (int i = 0; i < numValves; i++) {
+    for (int i = 0; i < s->numEntries; i++) {
       cbRead(&sensorBuffer[i], &sensorValue[i]);
       printf("%s	", sensorValue[i].value); //print all voltage sensor values
       cbWrite(&sensorBuffer[i], &sensorValue[i]);
     }
-    for (int i = 0; i < numTempSensors; i++) {
+    for (int i = 0; i < s->numEntries; i++) {
       cbRead(&tempBuffer[i], &tempValue[i]);
       printf("%s	", tempValue[i].value); //print all temp sensor values
       cbWrite(&tempBuffer[i], &tempValue[i]);
@@ -447,16 +449,16 @@ int Crate::getPlot(void) {
   return 1;
 }
 /*Function which prints a table of sensor values to a text file*/
-int Crate::Save(char *filename) {
+int Crate::Save(FillSched *s, char *filename) {
   FILE *fp;
   fp = fopen(filename, "w");
   printf("Saving data...\n");
 
   fprintf(fp, "Real Time		Run Time (s)	Scale Sensor (V)	");
-  for (int i = 0; i < numValves; i++) {
+  for (int i = 0; i < s->numEntries; i++) {
     fprintf(fp, "Sensor %i (V)	", i + 1);
   }
-  for (int i = 0; i < numTempSensors; i++) {
+  for (int i = 0; i < s->numEntries; i++) {
     fprintf(fp, "Temp. Sensor %i (K)	", i + 1);
   }
   fprintf(fp, "\n"); //Line break at end
@@ -471,12 +473,12 @@ int Crate::Save(char *filename) {
     cbWrite(&rtbuffer, &rtelement);                                                           //put values that were just read back in buffers so that they can be read again
     cbWrite(&tbuffer, &telement);
     cbWrite(&weightbuffer, &weightelement);
-    for (int i = 0; i < numValves; i++) {
+    for (int i = 0; i < s->numEntries; i++) {
       cbRead(&sensorBuffer[i], &sensorValue[i]);
       fprintf(fp, "%s	", sensorValue[i].value); //print all voltage sensor values
       cbWrite(&sensorBuffer[i], &sensorValue[i]);
     }
-    for (int i = 0; i < numTempSensors; i++) {
+    for (int i = 0; i < s->numEntries; i++) {
       cbRead(&tempBuffer[i], &tempValue[i]);
       fprintf(fp, "%s	", tempValue[i].value); //print all temp sensor values
       cbWrite(&tempBuffer[i], &tempValue[i]);
@@ -488,18 +490,18 @@ int Crate::Save(char *filename) {
   return 1;
 }
 /*--------------------------------------------------------------*/
-int Crate::NetSave(char *filename) {
+int Crate::NetSave(FillSched* s, char *filename) {
   /*First save data to local file*/
-  Save(filename);
+  Save(s,filename);
 
-  /*Convert the given filename into a C string that can be read as a terminal command*/
-  stringstream tmpcommand;
+  //Convert the given filename into a C string that can be read as a terminal command
+  /*stringstream tmpcommand;
   tmpcommand << "sh plot.sh " << filename << " " << networkloc << " " << numValves << " " << numTempSensors;
   const std::string tmp = tmpcommand.str();
   const char *command = tmp.c_str();
 
-  /*Plot (in gnuplot) and upload file using external bash script*/
-  system(command);
+  //Plot (in gnuplot) and upload file using external bash script
+  system(command);*/
 
   return 1;
 }
@@ -674,58 +676,7 @@ Error:
 /*------------------------------------------------------------*/
 /*Function containing fill cycle instructions----------------*/
 /*----------------------------------------------------------*/
-int Crate::fillCycle(void) {
-
-  autosaveSwitch = true; //allows program to autosave again after fill
-
-  //print a different message depending on whether the user started fill process manually
-  if (signaled.FILL == true)
-    printf("\nManual fill requested.  Turning on DAQ switch ... \n\n");
-  else
-    printf("\nScheduled fill time reached.  Turning on DAQ switch for first valve... \n\n");
-  signaled.FILL = false;
-
-  /*Start by filling the first dewar*/
-  ftime(&tfillstart); //reset fill timer
-  tfillelapsed = 0;
-  fillGEARBOX();
-
-  //take action depending on whether filling was finished normally or stopped by user
-  if (signaled.FILLING == true) {
-    signaled.FILLING = false;
-    signaled.BEGIN = true; //restart the filling cycle
-    printf("\nSensor threshold reached.  Turning off DAQ switch and restarting cycle ... \n\n");
-
-    if (email == true) {
-      /*Convert the email message into a C string that can be read as a terminal command*/
-      stringstream tmpcommand;
-      tmpcommand << "sh emailalert.sh "
-                 << "\"" << mailaddress << "\" "
-                 << "LN2 system filling operation was successfully completed.  Fill time was " << tfillelapsed << " seconds.";
-      const std::string tmp = tmpcommand.str();
-      const char *command = tmp.c_str();
-      /*send email using external bash script*/
-      system(command);
-    }
-
-  } else {
-    printf("\nFilling stopped partway.  Turning off DAQ switch ... \n\n");
-  }
-
-  ChanOff();
-  signaled.RUNNING = false;
-  prev_run_time += current_run_time;
-  ProcessSignal();
-
-  return 1;
-}
-
-/*-----------------------------------------------*/
-/*Fill GEARBOX during a fill cycle*/
-/*---------------------------------------------*/
-int Crate::fillGEARBOX(void) {
-  // KS modified Fri. Dec. 21, 2018, for the GEARBOX fill only
-  // valve numbering and wiring should be:
+// valve numbering and wiring for GEARBOX should be:
   // valve 0: valve on the big dewar
   // valve 1: valve to the GEARBOX+stand in the T on the wall (the other valve goes to the 8pi)
   // valve 2: valve to the 8pi in the T on the wall (the other valves goes to GEARBOX+stand)
@@ -734,6 +685,111 @@ int Crate::fillGEARBOX(void) {
   // valve 5: valve blocking the outlet from the GEARBOX
   // GEARBOX sensor is on channel 0, input from the parameter file is ignored
   // scale sensor is on channel 7
+int Crate::fillCycle(FillSched *s, int schedEntry) {
+
+  if((schedEntry >= s->numEntries)||(schedEntry < 0)){
+    printf("ERROR: Invalid fill schedule entry (%i)!\n",schedEntry);
+    exit(-1);
+  }
+
+  autosaveSwitch = true; //allows program to autosave again after fill
+
+  //print a different message depending on whether the user started fill process manually
+  if (signaled.FILL == true)
+    printf("\nManual fill requested for %s.  Starting fill noe ... \n\n",s->sched[schedEntry].entryName);
+  else
+    printf("\nStarting fill for %s ... \n\n",s->sched[schedEntry].entryName);
+  signaled.FILL = false;
+
+  //set up timer
+  ftime(&tfillstart); //reset fill timer
+  tfillelapsed = 0;
+
+  //turn on all valves, in order
+  for(int i=0;i<s->sched[schedEntry].numValves;i++){
+    ChanOn(s->sched[schedEntry].valves[i]);
+    usleep(1000000); //wait a bit so that switching between valves isn't instantaneous
+  }
+
+  //check voltage while filling, and allow viewer to stop filling with the end command
+  //filling automatically stops if sfilling time is greater than maxfilltime
+  int inum = 0;
+  while (((inum < iterations) && signaled.FILLING == true) && (tfillelapsed < maxfilltime)) {
+    usleep(1000000); //wait 1s
+    current_run_time = GetTime();
+    printf("current run time %f \n", current_run_time);
+    reading = Measure(s->sched[schedEntry].overflowSensor); //measure voltage on overflow sensor
+    printf("Sensor reading is %10.3f V\n", reading);
+    if (reading > threshold)
+      inum++;
+
+    if (msg->read(command) == 1) //keep this so that user can still issue commands
+    {
+      ReadCommand(&signaled, command);
+      ProcessSignal(s);
+    }
+
+    //figure out how much time has elapsed since filling started
+    ftime(&tcurrent);
+    tfillelapsed = tcurrent.millitm - tfillstart.millitm;
+    tfillelapsed = tfillelapsed / 1000 + tcurrent.time - tfillstart.time;
+    if (tfillelapsed > maxfilltime) {
+      printf("\nSensor voltage threshold is not being reached.  Threshold may be set poorly, or perhaps LN2 tank is empty.\nAborting run ...\n");
+
+      if (email == true) {
+        /*Converting the email message into a C string that can be read as a terminal command*/
+        stringstream tmpcommand;
+        tmpcommand << "sh emailalert.sh "
+                    << "\"" << mailaddress << "\" "
+                    << "The LN2 system was shut off automatically when filling " << s->sched[schedEntry].entryName << " since the sensor did not indicate filling was done after " << maxfilltime << " seconds.";
+        const std::string tmp = tmpcommand.str();
+        const char *command = tmp.c_str();
+        /*send email using external bash script*/
+        system(command);
+      }
+      signaled.FILLING = false;
+    }
+
+    recordMeasurement(s);
+  }
+
+
+  //take action depending on whether filling was finished normally or stopped by user
+  if (signaled.FILLING == true) {
+    signaled.FILLING = false;
+    printf("\nSensor threshold reached.  Finishing fill for %s ... \n\n",s->sched[schedEntry].entryName);
+
+    if (email == true) {
+      /*Convert the email message into a C string that can be read as a terminal command*/
+      stringstream tmpcommand;
+      tmpcommand << "sh emailalert.sh "
+                 << "\"" << mailaddress << "\" "
+                 << "LN2 system filling operation for " << s->sched[schedEntry].entryName << " was successfully completed.  Fill time was " << tfillelapsed << " seconds.";
+      const std::string tmp = tmpcommand.str();
+      const char *command = tmp.c_str();
+      /*send email using external bash script*/
+      system(command);
+    }
+
+    s->sched[schedEntry].schedFlag=0; //reset the fill flag
+
+  } else {
+    printf("\nFilling stopped partway.  Turning off DAQ switch ... \n\n");
+  }
+
+  ChanOff(); //close all valves
+  signaled.RUNNING = false;
+  ProcessSignal(s);
+
+  return 1;
+}
+
+/*-----------------------------------------------*/
+/*Fill GEARBOX during a fill cycle*/
+/*---------------------------------------------*/
+/*int Crate::fillGEARBOX(void) {
+  // KS modified Fri. Dec. 21, 2018, for the GEARBOX fill only
+  
   int valve;
   valve = 3;
   signaled.FILLING = true;
@@ -748,47 +804,8 @@ int Crate::fillGEARBOX(void) {
     GEARBOXChanOn(); //turn on the fill on GEARBOX valves
     int inum = 0;
 
-    //check voltage while filling, and allow viewer to stop filling with the end command
-    //filling automatically stops if sfilling time is greater than maxfilltime
-    while (((inum < iterations) && signaled.FILLING == true) && (tfillelapsed < maxfilltime)) {
-      usleep(polling_time); //wait a bit
-      current_run_time = GetTime();
-      printf("current run time %f \n", current_run_time);
-      reading = Measure(detectorInputs[0]); //measure voltage on overflow sensor
-      //printf(" %i %i %i \n", valve, valveOutputs[valve], detectorInputs[valve]);
-      printf("Sensor reading is %10.3f V\n", reading);
-      if (reading > threshold)
-        inum++;
-
-      if (msg->read(command) == 1) //keep this so that user can still issue commands
-      {
-        ReadCommand(&signaled, command);
-        ProcessSignal();
-      }
-
-      //figure out how much time has elapsed since filling started
-      ftime(&tcurrent);
-      tfillelapsed = tcurrent.millitm - tfillstart.millitm;
-      tfillelapsed = tfillelapsed / 1000 + tcurrent.time - tfillstart.time;
-      if (tfillelapsed > maxfilltime) {
-        printf("\nSensor voltage threshold is not being reached.  Threshold may be set poorly, or perhaps LN2 tank is empty.\nAborting run ...\n");
-
-        if (email == true) {
-          /*Converting the email message into a C string that can be read as a terminal command*/
-          stringstream tmpcommand;
-          tmpcommand << "sh emailalert.sh "
-                     << "\"" << mailaddress << "\" "
-                     << "The LN2 system was shut off automatically since the sensor did not indicate filling was done after " << maxfilltime << " seconds.";
-          const std::string tmp = tmpcommand.str();
-          const char *command = tmp.c_str();
-          /*send email using external bash script*/
-          system(command);
-        }
-        signaled.FILLING = false;
-      }
-
-      recordMeasurement();
-    }
+    
+    
 
     ChanOff(); //turn off the valve
 
@@ -797,21 +814,21 @@ int Crate::fillGEARBOX(void) {
   }
 
   return 1;
-}
+}*/
 /*--------------------------------------------------------------*/
-int Crate::autosaveData(void) {
+int Crate::autosaveData(FillSched* s) {
   printf("\n Autosaving data ...\n\n");
 
-  char s[80];
+  char st[80];
   time_t t = time(0);
-  strftime(s, 80, "%d%m%Y", localtime(&t));
+  strftime(st, 80, "%d%m%Y", localtime(&t));
   autosaveCounter += 1;
   /*Generate a filename to autosave with*/
   stringstream tmpascommand;
-  tmpascommand << s << "autosave" << autosaveCounter;
+  tmpascommand << st << "autosave" << autosaveCounter;
   std::string tmp = tmpascommand.str();
   const char *autosavename = tmp.c_str();
-  NetSave(const_cast<char *>(autosavename));
+  NetSave(s, const_cast<char *>(autosavename));
 
   return 1;
 }
@@ -827,26 +844,6 @@ int Crate::readParameters(void) {
   fgets(tmp, 200, parfile); //advance a line
   fgets(tmp, 200, parfile); //advance a line
   fscanf(parfile, "%s", tmp);
-  fill_day1 = atof(tmp);
-  printf("First fill day of week = %i \n", fill_day1);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  fill_day2 = atof(tmp);
-  printf("Second fill day of week (0-6) = %i \n", fill_day2);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  fill_hour = atof(tmp);
-  printf("Hour of the day to conduct fill sequence = %i \n", fill_hour);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  fill_min = atof(tmp);
-  printf("Minute of the hour of the day to conduct fill sequence = %i \n", fill_min);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
   threshold = atof(tmp);
   printf("Sensor threshold to indicate LN2 overflow (V) = %f \n", threshold);
   fgets(tmp, 200, parfile); //end the line
@@ -858,12 +855,7 @@ int Crate::readParameters(void) {
   fgets(tmp, 200, parfile); //advance a line
   fscanf(parfile, "%s", tmp);
   polling_time = atoi(tmp) * 1000; //convert from milliseconds into microseconds
-  printf("Time between readings while filling (micros) = %i \n", polling_time);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  waiting_mult = atoi(tmp);
-  printf("Integer number of measurements taken at the above time interval specified = %i \n", waiting_mult);
+  printf("Time between readings when not filling (microsec) = %i \n", polling_time);
   fgets(tmp, 200, parfile); //end the line
   fgets(tmp, 200, parfile); //advance a line
   fscanf(parfile, "%s", tmp);
@@ -895,7 +887,7 @@ int Crate::readParameters(void) {
   fgets(tmp, 200, parfile); //end the line
   fgets(tmp, 200, parfile); //advance a line
   fscanf(parfile, "%s", mailaddress);
-  printf("Alert email = %s", mailaddress);
+  printf("Alert email = %s\n", mailaddress);
 
   printf("File 'parameters.dat' read sucessfully!\n");
 
@@ -904,8 +896,8 @@ int Crate::readParameters(void) {
   return 1;
 }
 
-int Crate::readConnections(void) {
-  /* Read sensor connections from text file connections.dat*/
+/*int Crate::readConnections(void) {
+  // Read sensor connections from text file connections.dat
   FILE *parfile = fopen("connections.dat", "r");
   //char tmp [200];
   fgets(tmp, 200, parfile); //advance a line
@@ -978,7 +970,7 @@ int Crate::readConnections(void) {
   printf("File 'connections.dat' read sucessfully!\n");
 
   return 1;
-}
+}*/
 
 int Crate::readCalibration(void) {
   /* Read sensor connections from text file connections.dat*/
@@ -1085,7 +1077,12 @@ void Crate::readSchedule(FillSched *s){
 										}
 									}
 									s->sched[currentEntry].numValves=k;
-								}else if(strcmp(line,"time")==0){
+								}else if(strcmp(line,"overflow_sensor")==0){
+                  tok = strtok (NULL, "]");
+									tok[strcspn(tok, "\r\n")] = 0;//strips newline characters from the string
+									//printf("sensor: %s\n",tok);
+                  s->sched[currentEntry].overflowSensor = atoi(tok);
+                }else if(strcmp(line,"time")==0){
 									tok = strtok (NULL, "]");
 									tok[strcspn(tok, "\r\n")] = 0;//strips newline characters from the string
 									strcpy(line,tok);
@@ -1165,11 +1162,11 @@ void Crate::readSchedule(FillSched *s){
 	s->numEntries = currentEntry-1;
 	printf("\nFill schedule read. %i entries read.\n",s->numEntries);
 	for(int i=0;i<s->numEntries;i++){
-		printf("Schedule entry %i: %s, Valve sequence: [",i+1,s->sched[i].entryName);
+		printf("Schedule entry %i: %s, valves: [",i+1,s->sched[i].entryName);
 		for (int j=0;j<s->sched[i].numValves;j++){
 			printf(" %i",s->sched[i].valves[j]);
 		}
-		printf(" ], filling ");
+		printf(" ], overflow sensor [ %i ], filling ",s->sched[i].overflowSensor);
 		if(s->sched[i].schedMode==0){
 			printf("every sunday at %.2i:%.2i.\n",s->sched[i].schedHour,s->sched[i].schedMin);
 		}else if(s->sched[i].schedMode==1){
