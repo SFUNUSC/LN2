@@ -69,10 +69,7 @@ public:
   int ClearSpectrum(void);
   int Save(FillSched*, char*);
   int NetSave(FillSched*, char*);
-  int ChanOn(int chan);
-  int ChanOff(void);
   int getPlot(FillSched*);
-  float Measure(int channel);
   double GetTime(void);
   int fill(FillSched*,int);
   int autosaveData(FillSched*);
