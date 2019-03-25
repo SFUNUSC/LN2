@@ -370,7 +370,9 @@ Crate::GetTime(void) {
 }
 /*Function which records current sensor values in circular buffers*/
 int Crate::recordMeasurement(FillSched *s) {
-  double weightV, weight, sensor;
+  double weightV, weight;
+  double sensor[MAXSCHEDENTRIES];
+  char sensorName[256];
   time_t current_time;
   long long ts;
 
@@ -379,7 +381,11 @@ int Crate::recordMeasurement(FillSched *s) {
   ts *= 1000000000;
   //	printf("current time %ld time stame %lld\n",current_time,ts);
   weightV = measure(scaleInput);
-  sensor = measure(s->sched[0].overflowSensor);
+  for(int i=0;i<s->numEntries;i++){
+    if(i<MAXSCHEDENTRIES){
+      sensor[i] = measure(s->sched[i].overflowSensor);
+    }
+  }
   weight = findWeight(weightV);
 
   //save real time to buffer
@@ -403,11 +409,17 @@ int Crate::recordMeasurement(FillSched *s) {
             INFLUX_TS(ts),
             INFLUX_END);
 
-  post_http(&c,
-            INFLUX_MEAS("sensor"),
-            INFLUX_F_FLT("sensor", sensor, 6),
+  for(int i=0;i<s->numEntries;i++){
+    if(i<MAXSCHEDENTRIES){
+      sprintf(sensorName,"sensor%i",i);
+      post_http(&c,
+            INFLUX_MEAS(sensorName),
+            INFLUX_F_FLT(sensorName, sensor[i], 6),
             INFLUX_TS(ts),
             INFLUX_END);
+    }
+  }
+  
 
   for (int i = 0; i < s->numEntries; i++) {
     //save overflow sensor measurement to buffer
@@ -648,61 +660,63 @@ int Crate::autosaveData(FillSched* s) {
 int Crate::readParameters(void) {
   /* Read parameters from text file parameters.dat*/
   FILE *parfile = fopen("parameters.dat", "r");
-  //char tmp [200];
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  threshold = atof(tmp);
+  char* str;
+  str = fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
+  if(fscanf(parfile, "%s", tmp)!=0)
+    threshold = atof(tmp);
   printf("Sensor threshold to indicate LN2 overflow (V) = %f \n", threshold);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  scale_threshold = atof(tmp);
+  str = fgets(tmp, 200, parfile); //end the line
+  str = fgets(tmp, 200, parfile); //advance a line
+  if(fscanf(parfile, "%s", tmp)!=0)
+    scale_threshold = atof(tmp);
   printf("Weight at which tank needs refilled (kg)= %f \n", scale_threshold);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  polling_time = atoi(tmp) * 1000; //convert from milliseconds into microseconds
+  str = fgets(tmp, 200, parfile); //end the line
+  str = fgets(tmp, 200, parfile); //advance a line
+  if(fscanf(parfile, "%s", tmp)!=0)
+    polling_time = atoi(tmp) * 1000; //convert from milliseconds into microseconds
   printf("Time between readings when not filling (microsec) = %i \n", polling_time);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  iterations = atoi(tmp);
+  str = fgets(tmp, 200, parfile); //end the line
+  str = fgets(tmp, 200, parfile); //advance a line
+  if(fscanf(parfile, "%s", tmp)!=0)
+    iterations = atoi(tmp);
   printf("Number of measurements allowed above sensor threshold = %i \n", iterations);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  maxfilltime = atof(tmp);
+  str = fgets(tmp, 200, parfile); //end the line
+  str = fgets(tmp, 200, parfile); //advance a line
+  if(fscanf(parfile, "%s", tmp)!=0)
+    maxfilltime = atof(tmp);
   printf("Maximum length of time filling can take place (s) = %f \n", maxfilltime);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  circBufferSize = atoi(tmp);
+  str = fgets(tmp, 200, parfile); //end the line
+  str = fgets(tmp, 200, parfile); //advance a line
+  if(fscanf(parfile, "%s", tmp)!=0)
+    circBufferSize = atoi(tmp);
   printf("Number of saved data points = %i \n", circBufferSize);
   autosaveSwitch = true;    //make sure to set this value for proper autosaving
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  autosave = atoi(tmp);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", networkloc);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  email = atoi(tmp);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", mailaddress);
-  if(email){
-    printf("Will send email alerts to %s\n", mailaddress);
-  }else{
-    printf("Will not send email alerts.\n", email);
+  str = fgets(tmp, 200, parfile); //end the line
+  str = fgets(tmp, 200, parfile); //advance a line
+  if(fscanf(parfile, "%s", tmp)!=0)
+    autosave = atoi(tmp);
+  str = fgets(tmp, 200, parfile); //end the line
+  str = fgets(tmp, 200, parfile); //advance a line
+  if(fscanf(parfile, "%s", networkloc)!=0)
+    str = fgets(tmp, 200, parfile); //end the line
+  str = fgets(tmp, 200, parfile); //advance a line
+  if(fscanf(parfile, "%s", tmp)!=0)
+    email = atoi(tmp);
+  str = fgets(tmp, 200, parfile); //end the line
+  str = fgets(tmp, 200, parfile); //advance a line
+  if(fscanf(parfile, "%s", mailaddress)!=0){
+    if(email){
+      printf("Will send email alerts to %s\n", mailaddress);
+    }else{
+      printf("Will not send email alerts.\n", email);
+    }
   }
+  
 
   printf("File 'parameters.dat' read sucessfully!\n");
 
@@ -711,117 +725,41 @@ int Crate::readParameters(void) {
   return 1;
 }
 
-/*int Crate::readConnections(void) {
-  // Read sensor connections from text file connections.dat
-  FILE *parfile = fopen("connections.dat", "r");
-  //char tmp [200];
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  numValves = atoi(tmp);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  numTempSensors = atoi(tmp);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
-  int j = 0;
-  for (int i = 0; i < 20; i++) {
-    fscanf(parfile, "%s", tmp);
-    if (j < numValves) {
-      detectorInputs[i] = atoi(tmp);
-      j++;
-    }
-    fgets(tmp, 200, parfile); //end the line
-  }
-  fgets(tmp, 200, parfile); //advance a line
-  j = 0;
-  for (int i = 0; i < 20; i++) {
-    fscanf(parfile, "%s", tmp);
-    if (j < numValves) {
-      valveOutputs[i] = atoi(tmp);
-      j++;
-    }
-    fgets(tmp, 200, parfile); //end the line
-  }
-  fgets(tmp, 200, parfile); //advance a line
-  j = 0;
-  for (int i = 0; i < 20; i++) {
-    fscanf(parfile, "%s", tmp);
-    if (j < numTempSensors) {
-      tempSensorInputs[i] = atoi(tmp);
-      j++;
-    }
-    fgets(tmp, 200, parfile); //end the line
-  }
-  fgets(tmp, 200, parfile); //advance a line
-  j = 0;
-  for (int i = 0; i < 20; i++) {
-    fscanf(parfile, "%s", tmp);
-    if (j < numTempSensors) {
-      tempSensorBoxPorts[i] = atoi(tmp);
-      j++;
-    }
-    fgets(tmp, 200, parfile); //end the line
-  }
-  fgets(tmp, 200, parfile); //advance a line
-  j = 0;
-  for (int i = 0; i < 20; i++) {
-    fscanf(parfile, "%s", tmp);
-    if (j < numValves) {
-      detectorFillCounter[i] = atoi(tmp);
-      j++;
-    }
-    fgets(tmp, 200, parfile); //end the line
-  }
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  scaleInput = atoi(tmp);
-
-  printf("File 'connections.dat' read sucessfully!\n");
-
-  return 1;
-}*/
-
 int Crate::readCalibration(void) {
   /* Read sensor connections from text file connections.dat*/
   FILE *parfile = fopen("calibration.dat", "r");
-  //char tmp [200];
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
-  fscanf(parfile, "%s", tmp);
-  sensorBoxSupplyV = atof(tmp);
-  fgets(tmp, 200, parfile); //end the line
-  fgets(tmp, 200, parfile); //advance a line
+  char* str;
+  str = fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
+  if(fscanf(parfile, "%s", tmp)!=0)
+    sensorBoxSupplyV = atof(tmp);
+  str = fgets(tmp, 200, parfile); //end the line
+  str = fgets(tmp, 200, parfile); //advance a line
   for (int i = 0; i < 20; i++) {
-    fscanf(parfile, "%s", tmp);
-    boxResistors[i] = atof(tmp);
-    fgets(tmp, 200, parfile); //end the line
+    if(fscanf(parfile, "%s", tmp)!=0)
+      boxResistors[i] = atof(tmp);
+    str = fgets(tmp, 200, parfile); //end the line
   }
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
   for (int i = 0; i < 3; i++) {
-    fscanf(parfile, "%s", tmp);
-    tempFit[i] = atof(tmp);
-    fgets(tmp, 200, parfile); //end the line
-    fgets(tmp, 200, parfile); //advance a line
+    if(fscanf(parfile, "%s", tmp)!=0)
+      tempFit[i] = atof(tmp);
+    str = fgets(tmp, 200, parfile); //end the line
+    str = fgets(tmp, 200, parfile); //advance a line
   }
-  fgets(tmp, 200, parfile); //advance a line
-  fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
+  str = fgets(tmp, 200, parfile); //advance a line
   for (int i = 0; i < 2; i++) {
-    fscanf(parfile, "%s", tmp);
-    scaleFit[i] = atof(tmp);
-    fgets(tmp, 200, parfile); //end the line
-    fgets(tmp, 200, parfile); //advance a line
+    if(fscanf(parfile, "%s", tmp)!=0)
+      scaleFit[i] = atof(tmp);
+    str = fgets(tmp, 200, parfile); //end the line
+    str = fgets(tmp, 200, parfile); //advance a line
   }
   fclose(parfile);
 
