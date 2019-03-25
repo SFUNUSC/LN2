@@ -47,7 +47,7 @@ Error:
   }
   if (DAQmxFailed(error))
     printf("DAQmx Error: %s\n", errBuff);
-  printf("Turned on channel %i.\n", chan);
+  //printf("Turned on channel %i.\n", chan);
   //getchar();
   return 1;
 }
@@ -89,7 +89,7 @@ Error:
   }
   if (DAQmxFailed(error))
     printf("DAQmx Error: %s\n", errBuff);
-  printf("Turned on channel %i.\n", chan);
+  //printf("Turned on channel %i.\n", chan);
   //getchar();
   return 1;
 }
@@ -123,7 +123,7 @@ Error:
   }
   if (DAQmxFailed(error))
     printf("DAQmx Error: %s\n", errBuff);
-  printf("Turned off all channels.\n");
+  //printf("Turned off all channels.\n");
   //getchar();*/
   return 0;
 }
