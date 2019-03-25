@@ -7,7 +7,7 @@ int chanOn(int chan) {
 
   if(chan<0){
     printf("Invalid channel specified (%i), not taking any action.",chan);
-    return;
+    return 1;
   }
 
   printf("Turning on channel %i.\n", chan);
