@@ -5,10 +5,6 @@
 /*----------------------------------------------------------*/
 int chanOn(int* chan, int numChans) {
 
-  
-
-  printf("Turning on channel %i.\n", chan);
-
   int32 error = 0;
   TaskHandle taskHandle = 0;
   uInt32 data[1] = {0}; //all channels off by default
@@ -19,11 +15,13 @@ int chanOn(int* chan, int numChans) {
     return 1;
   }
   data[0] = 1 << chan[0]; //turn on specfied channel, leave others off
+  printf("Turning on channel %i (NIDAQ).\n", chan[0]);
   for(int i=1;i<numChans;i++){
     if(chan[i]<0){
       printf("Invalid channel specified (%i), not taking any action.",chan[i]);
       return 1;
     }
+    printf("Turning on channel %i (NIDAQ).\n", chan[i]);
     data[0] |= 1 << chan[i]; //turn on specified channel
   }
 
@@ -56,7 +54,7 @@ Error:
 /*--------------------------------------------------------------*/
 int chanOn(int chan) {
 
-  printf("Turning on channel %i.\n", chan);
+  printf("Turning on channel %i (NIDAQ).\n", chan);
 
   int32 error = 0;
   TaskHandle taskHandle = 0;
@@ -98,7 +96,7 @@ Error:
 /*--------------------------------------------------------------*/
 int chanOff(void) {
 
-  printf("Turning off all channels.\n");
+  printf("Turning off all channels (NIDAQ).\n");
 
   int32 error = 0;
   TaskHandle taskHandle = 0;
