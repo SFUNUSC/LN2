@@ -84,6 +84,7 @@ int Crate::MainLoop(FillSched *s) {
   int day, hour, minute;
   struct tm *goodtime;
   time_t now;
+  bool foundDetector;
 
   goodtime = (tm *)malloc(sizeof(tm));
 
@@ -104,12 +105,24 @@ int Crate::MainLoop(FillSched *s) {
         printf("autosaveData switch to false \n");
         autosaveData();
         autosaveSwitch = false; //doesn't allow program to autosave again until after next fill
-      }
-
-      if (signaled.FILL == true) {
-        printf("Fill initiated outside of the scheduled cycle\n");
-        fill();
       }*/
+
+      //filling outside of the normal cycle
+      if (signaled.FILL == true) {
+        foundDetector=false;
+        for(int i=0;i<s->numEntries;i++){
+          //check for matching detector name
+          if(strcmp(s->sched[i].entryName,fillName)==0){
+            foundDetector=true;
+            fill(s,i);
+            break;
+          }
+        }
+        if(foundDetector==false){
+          printf("Could not find detector with name %s in the schedule, no action taken.\n",fillName);
+        }
+        
+      }
 
       time(&now);
       goodtime = localtime(&now);
@@ -162,7 +175,6 @@ int Crate::MainLoop(FillSched *s) {
       //PERFORM FILLING
       for (int i=0;i<s->numEntries;i++){
         if(s->sched[i].schedFlag){
-          signaled.FILLING = true;
           fill(s,i); //start the fill cycle
         }
       }
@@ -230,7 +242,7 @@ void Crate::ProcessSignal(FillSched* s) {
     printf("start -- Same as above.\n");
     printf("end -- Ends the run.  If currently filling, ends the filling process.\n");
     printf("stop -- Same as above.\n");
-    printf("fill -- Starts the dewar filling process immediately, then afterwards in set intervals as defined in parameters.dat.  Fills only if a run is currently in progress.\n");
+    printf("fill detector_name -- Starts the dewar filling process immediately for the detector with name detector_name defined in schedule.dat.\n");
     printf("time -- Shows the time elapsed since the last filling operation.\n");
     printf("on X -- Turns on the DAQ switch P0.X, where X is an integer from 0 to 7.\n");
     printf("off -- Turns off all DAQ switches, closing all valves.\n");
@@ -262,10 +274,10 @@ void Crate::ReadCommand(struct Signals *signal, char *command) {
   if (((strstr(command, "end")) != NULL) || ((strstr(command, "stop")) != NULL)) {
     printf("\n Received end command ... \n\n");
     signal->END = true;
-  } else if (((strstr(command, "begin")) != NULL) || ((strstr(command, "start")) != NULL)) {
+  } else if (((strcmp(command, "begin")) == 0) || ((strcmp(command, "start")) == 0)) {
     printf("\n Starting run ...\n\n");
     signal->BEGIN = true;
-  } else if ((strstr(command, "time")) != NULL) {
+  } else if ((strcmp(command, "time")) == 0) {
     signal->TIME = true;
   } else if ((strstr(command, "netsave")) != NULL) {
     filename = strtok(command, " ");
@@ -302,17 +314,26 @@ void Crate::ReadCommand(struct Signals *signal, char *command) {
       printf("\n Invalid DAQ channel specified.  Type 'measure X', where 'X' is an integer from 0 to 7. \n\n");
     }
   } else if ((strstr(command, "fill")) != NULL) {
-    printf("\n Received fill command ... \n\n");
-    signal->FILL = true;
-    signal->RUNNING = true;
+    fillName = strtok(command, " ");
+    fillName = strtok(NULL, " ");
+    if(fillName != NULL){
+      printf("\n Received command to fill %s ...\n\n", fillName);
+      signal->FILL = true;
+      //start the run if it hasn't already been started
+      if(signal->RUNNING == false){
+        signal->BEGIN = true;
+      }
+    }else{
+      printf("\n Invalid fill command (syntax: ./LN2_master fill detector_name).\n\n");
+    }
   } else if ((strstr(command, "table")) != NULL) {
     printf("\n Showing table of recent data ... \n\n");
     signal->PLOT = true;
-  } else if (((strstr(command, "list")) != NULL) || ((strstr(command, "help")) != NULL)) {
+  } else if (((strcmp(command, "list")) == 0) || ((strcmp(command, "help")) == 0)) {
     printf("\n Showing list of available commands ... \n\n");
     signal->LIST = true;
   } else {
-    printf("\n Command not understood\n\n");
+    printf("\n Command not understood (%s).\n\n",command);
     ;
   }
 }
@@ -529,6 +550,8 @@ int Crate::fill(FillSched *s, int schedEntry) {
     printf("\nStarting fill for %s at: %s \n",s->sched[schedEntry].entryName,ctime(&tcurrent.time));
   signaled.FILL = false;
 
+  //signal that filling is in progress
+  signaled.FILLING = true;
   
 
   //turn on all valves, in order
@@ -542,8 +565,8 @@ int Crate::fill(FillSched *s, int schedEntry) {
   int inum = 0;
   while (((inum < iterations) && signaled.FILLING == true) && (tfillelapsed < maxfilltime)) {
     usleep(1000000); //wait 1s
-    current_run_time = GetTime();
-    printf("current run time %f \n", current_run_time);
+    //current_run_time = GetTime();
+    //printf("current run time %f \n", current_run_time);
     reading = measure(s->sched[schedEntry].overflowSensor); //measure voltage on overflow sensor
     printf("Sensor reading is %10.3f V\n", reading);
     if (reading > threshold)

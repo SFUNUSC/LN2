@@ -118,6 +118,7 @@ private:
 	double maxfilltime; //maximum length of time (in seconds) during which filling can take place before automatic shut-off of valves
 	int circBufferSize; //size of the circular buffers (# of data points)
 	char* filename; //name of file to save data to
+	char* fillName; //name of system to fill
 	char* masterParam; //additional parameter that can be given to master
 	bool autosave; //if true, data will be automatically saved and uploaded once the data buffers are full
 	bool autosaveSwitch; //used to enforce only one autosave after each fill
