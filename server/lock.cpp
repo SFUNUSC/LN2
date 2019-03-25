@@ -1,7 +1,7 @@
 #include "lock.h"
 
 lock::lock(std::string name) {
-  name_base = "/var/lock/";
+  name_base = ""; //base directory for the lockfile (for now just use the server program directory)
   name_base += name;
   l = fopen(name_base.c_str(), "r");
   if (l == NULL) //if the file does not exist, the device is free

@@ -2,6 +2,7 @@
 *.out
 LN2_server
 LN2_master
+LN2
 client
 flush
 *~

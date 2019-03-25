@@ -10,6 +10,7 @@
 
 //valve and sensor measurement functions which should be implemented for any DAQ used with this code
 int chanOn(int);
+int chanOn(int*,int);
 int chanOff();
 float measure(int);
 

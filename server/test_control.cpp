@@ -3,9 +3,19 @@
 /*------------------------------------------------------------*/
 /*Functions controlling the DAQ------------------------------*/
 /*----------------------------------------------------------*/
-int chanOn(int chan) {
+int chanOn(int* chan, int numChans) {
 
+  for(int i=0;i<numChans;i++){
+    printf("Turning on channel %i (test controller).\n",chan[i]);
+  }
+  
+  return 1;
+}
+/*--------------------------------------------------------------*/
+int chanOn(int chan) {
+  
   printf("Turning on channel %i (test controller).\n",chan);
+  
   return 1;
 }
 /*--------------------------------------------------------------*/

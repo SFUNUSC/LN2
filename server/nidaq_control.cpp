@@ -3,12 +3,9 @@
 /*------------------------------------------------------------*/
 /*Functions controlling the DAQ------------------------------*/
 /*----------------------------------------------------------*/
-int chanOn(int chan) {
+int chanOn(int* chan, int numChans) {
 
-  if(chan<0){
-    printf("Invalid channel specified (%i), not taking any action.",chan);
-    return 1;
-  }
+  
 
   printf("Turning on channel %i.\n", chan);
 
@@ -16,6 +13,60 @@ int chanOn(int chan) {
   TaskHandle taskHandle = 0;
   uInt32 data[1] = {0}; //all channels off by default
 
+  //turn on the specified channels
+  if(chan[0]<0){
+    printf("Invalid channel specified (%i), not taking any action.",chan[0]);
+    return 1;
+  }
+  data[0] = 1 << chan[0]; //turn on specfied channel, leave others off
+  for(int i=1;i<numChans;i++){
+    if(chan[i]<0){
+      printf("Invalid channel specified (%i), not taking any action.",chan[i]);
+      return 1;
+    }
+    data[0] |= 1 << chan[i]; //turn on specified channel
+  }
+
+  char errBuff[2048] = {'\0'};
+
+  // DAQmx Configure Code
+  DAQmxErrChk(DAQmxBaseCreateTask("", &taskHandle));
+  DAQmxErrChk(DAQmxBaseCreateDOChan(taskHandle, "Dev1/port0", "", DAQmx_Val_ChanForAllLines));
+
+  // DAQmx Start Code
+  DAQmxErrChk(DAQmxBaseStartTask(taskHandle));
+
+  // DAQmx Write Code
+  DAQmxErrChk(DAQmxBaseWriteDigitalU32(taskHandle, 1, 1, 10.0, DAQmx_Val_GroupByChannel, data, NULL, NULL));
+
+Error:
+  if (DAQmxFailed(error))
+    DAQmxBaseGetExtendedErrorInfo(errBuff, 2048);
+  if (taskHandle != 0) {
+    // DAQmx Stop Code
+    DAQmxBaseStopTask(taskHandle);
+    DAQmxBaseClearTask(taskHandle);
+  }
+  if (DAQmxFailed(error))
+    printf("DAQmx Error: %s\n", errBuff);
+  printf("Turned on channel %i.\n", chan);
+  //getchar();
+  return 1;
+}
+/*--------------------------------------------------------------*/
+int chanOn(int chan) {
+
+  printf("Turning on channel %i.\n", chan);
+
+  int32 error = 0;
+  TaskHandle taskHandle = 0;
+  uInt32 data[1] = {0}; //all channels off by default
+
+  //turn on the specified channels
+  if(chan<0){
+    printf("Invalid channel specified (%i), not taking any action.",chan);
+    return 1;
+  }
   data[0] = 1 << chan; //turn on specfied channel, leave others off
 
   char errBuff[2048] = {'\0'};

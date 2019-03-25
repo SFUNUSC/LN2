@@ -554,11 +554,8 @@ int Crate::fill(FillSched *s, int schedEntry) {
   signaled.FILLING = true;
   
 
-  //turn on all valves, in order
-  for(int i=0;i<s->sched[schedEntry].numValves;i++){
-    usleep(1000000); //wait a bit so that switching between valves isn't instantaneous
-    chanOn(s->sched[schedEntry].valves[i]);
-  }
+  //turn on all valves
+  chanOn(s->sched[schedEntry].valves,s->sched[schedEntry].numValves);
 
   //check voltage while filling, and allow viewer to stop filling with the end command
   //filling automatically stops if sfilling time is greater than maxfilltime
