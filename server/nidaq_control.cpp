@@ -5,7 +5,12 @@
 /*----------------------------------------------------------*/
 int chanOn(int chan) {
 
-  printf("Turning on channel %i.\n",chan);
+  if(chan<0){
+    printf("Invalid channel specified (%i), not taking any action.",chan);
+    return;
+  }
+
+  printf("Turning on channel %i.\n", chan);
 
   int32 error = 0;
   TaskHandle taskHandle = 0;
@@ -35,7 +40,7 @@ Error:
   }
   if (DAQmxFailed(error))
     printf("DAQmx Error: %s\n", errBuff);
-  printf("Turned on channel %i.\n",chan);
+  printf("Turned on channel %i.\n", chan);
   //getchar();
   return 1;
 }
@@ -75,6 +80,12 @@ Error:
 }
 /*--------------------------------------------------------------*/
 float measure(int channel) {
+
+  if(channel<0){
+    printf("Invalid channel specified (%i), returning 10 V.",channel);
+    return 10.0f;
+  }
+
   //Generate the DAQ channel (eg. Dev1/ai1) that will be measured
   char *mchannel = "Dev1/ai";
   stringstream ss;
