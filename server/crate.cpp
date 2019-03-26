@@ -658,69 +658,72 @@ int Crate::autosaveData(FillSched* s) {
 }
 /*--------------------------------------------------------------*/
 int Crate::readParameters(void) {
-  /* Read parameters from text file parameters.dat*/
+  // Read parameters from text file parameters.dat
+  char *tok;
+  char str[256],fullLine[256],parameter[256],value[256];
+
   FILE *parfile = fopen("parameters.dat", "r");
-  char* str;
-  str = fgets(tmp, 200, parfile); //advance a line
-  str = fgets(tmp, 200, parfile); //advance a line
-  str = fgets(tmp, 200, parfile); //advance a line
-  str = fgets(tmp, 200, parfile); //advance a line
-  str = fgets(tmp, 200, parfile); //advance a line
-  str = fgets(tmp, 200, parfile); //advance a line
-  if(fscanf(parfile, "%s", tmp)!=0)
-    threshold = atof(tmp);
-  printf("Sensor threshold to indicate LN2 overflow (V) = %f \n", threshold);
-  str = fgets(tmp, 200, parfile); //end the line
-  str = fgets(tmp, 200, parfile); //advance a line
-  if(fscanf(parfile, "%s", tmp)!=0)
-    scale_threshold = atof(tmp);
-  printf("Weight at which tank needs refilled (kg)= %f \n", scale_threshold);
-  str = fgets(tmp, 200, parfile); //end the line
-  str = fgets(tmp, 200, parfile); //advance a line
-  if(fscanf(parfile, "%s", tmp)!=0)
-    polling_time = atoi(tmp) * 1000; //convert from milliseconds into microseconds
-  printf("Time between readings when not filling (microsec) = %i \n", polling_time);
-  str = fgets(tmp, 200, parfile); //end the line
-  str = fgets(tmp, 200, parfile); //advance a line
-  if(fscanf(parfile, "%s", tmp)!=0)
-    iterations = atoi(tmp);
-  printf("Number of measurements allowed above sensor threshold = %i \n", iterations);
-  str = fgets(tmp, 200, parfile); //end the line
-  str = fgets(tmp, 200, parfile); //advance a line
-  if(fscanf(parfile, "%s", tmp)!=0)
-    maxfilltime = atof(tmp);
-  printf("Maximum length of time filling can take place (s) = %f \n", maxfilltime);
-  str = fgets(tmp, 200, parfile); //end the line
-  str = fgets(tmp, 200, parfile); //advance a line
-  if(fscanf(parfile, "%s", tmp)!=0)
-    circBufferSize = atoi(tmp);
-  printf("Number of saved data points = %i \n", circBufferSize);
-  autosaveSwitch = true;    //make sure to set this value for proper autosaving
-  str = fgets(tmp, 200, parfile); //end the line
-  str = fgets(tmp, 200, parfile); //advance a line
-  if(fscanf(parfile, "%s", tmp)!=0)
-    autosave = atoi(tmp);
-  str = fgets(tmp, 200, parfile); //end the line
-  str = fgets(tmp, 200, parfile); //advance a line
-  if(fscanf(parfile, "%s", networkloc)!=0)
-    str = fgets(tmp, 200, parfile); //end the line
-  str = fgets(tmp, 200, parfile); //advance a line
-  if(fscanf(parfile, "%s", tmp)!=0)
-    email = atoi(tmp);
-  str = fgets(tmp, 200, parfile); //end the line
-  str = fgets(tmp, 200, parfile); //advance a line
-  if(fscanf(parfile, "%s", mailaddress)!=0){
-    if(email){
-      printf("Will send email alerts to %s\n", mailaddress);
-    }else{
-      printf("Will not send email alerts.\n", email);
+
+  while(!(feof(parfile)))//go until the end of file is reached
+    {
+			if(fgets(str,256,parfile)!=NULL) //get an entire line
+				{
+          strcpy(fullLine,str);
+					tok=strtok(str,"[");
+          if(tok!=NULL){
+            tok[strcspn(tok, "\r\n")] = 0;//strips newline characters from the string
+            strcpy(parameter,tok);
+            tok = strtok (NULL, "]");
+            if(tok!=NULL){
+              tok[strcspn(tok, "\r\n")] = 0;//strips newline characters from the string
+              strcpy(value,tok);
+              if((parameter!=NULL)&&(value!=NULL)){
+                if(strcmp(parameter,"sensor_threshold_V")==0){
+                  threshold = atof(value);
+                }else if(strcmp(parameter,"scale_threshold_kg")==0){
+                  scale_threshold = atof(value);
+                }else if(strcmp(parameter,"sensor_reading_interval_ms")==0){
+                  polling_time = atoi(value) * 1000; //convert from milliseconds into microseconds
+                }else if(strcmp(parameter,"readings_before_fill_stop")==0){
+                  iterations = atoi(value);
+                }else if(strcmp(parameter,"max_filling_time")==0){
+                  maxfilltime = atof(value);
+                }else if(strcmp(parameter,"buffer_size")==0){
+                  circBufferSize = atoi(value);
+                }else if(strcmp(parameter,"autosave")==0){
+                  autosave = atoi(value);
+                }else if(strcmp(parameter,"upload_loc")==0){
+                  strcpy(networkloc,value);
+                }else if(strcmp(parameter,"send_email")==0){
+                  email = atoi(value);
+                }else if(strcmp(parameter,"email_adress")==0){
+                  strcpy(mailaddress,value);
+                }
+              }
+            }
+          }
+        }    
     }
-  }
-  
 
   printf("File 'parameters.dat' read sucessfully!\n");
-
-  //fclose(parfile);
+  printf("Sensor threshold to indicate LN2 overflow (V) = %.2f \n", threshold);
+  printf("Weight at which tank needs refilled (kg)= %.2f \n", scale_threshold);
+  printf("Time between readings when not filling (microsec) = %i \n", polling_time);
+  printf("Number of measurements allowed above sensor threshold = %i \n", iterations);
+  printf("Maximum length of time filling can take place (s) = %.2f \n", maxfilltime);
+  printf("Number of saved data points = %i \n", circBufferSize);
+  if(autosave==1){
+    printf("Will autosave data to: %s\n", networkloc);
+  }else{
+    printf("Will not autosave data.\n");
+  }
+  if(email==1){
+    printf("Will send email alerts to: %s\n", mailaddress);
+  }else{
+    printf("Will not send email alerts.\n");
+  }
+  
+  fclose(parfile);
 
   return 1;
 }
