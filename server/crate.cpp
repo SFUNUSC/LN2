@@ -85,6 +85,9 @@ int Crate::MainLoop(FillSched *s) {
   struct tm *goodtime;
   time_t now;
   bool foundDetector;
+  double autosaveFlagTime = 0.0;
+  bool autosaveFlag = false;
+  bool autosaveNow = false;
 
   goodtime = (tm *)malloc(sizeof(tm));
 
@@ -101,11 +104,19 @@ int Crate::MainLoop(FillSched *s) {
 			current_run_min = current_run_time/60.0;
 			//printf("minute: %f\n",current_run_min);
 
-      /*if (((current_run_time + tfillelapsed) > (interval * 0.15)) && autosaveSwitch == true && autosave == true) {
-        printf("autosaveData switch to false \n");
-        autosaveData();
-        autosaveSwitch = false; //doesn't allow program to autosave again until after next fill
-      }*/
+      //autosave if it has been 20 minutes since a fill
+      if(autosaveFlag){
+        for (int i=0;i<s->numEntries;i++){
+          if(current_run_min - autosaveFlagTime > 20){
+            autosaveNow = true;
+            autosaveFlag = false; //unset the flag
+          }
+        }
+        if(autosaveNow){
+          autosaveData(s);
+          autosaveNow = false; //unset the flag
+        }
+      }
 
       //filling outside of the normal cycle
       if (signaled.FILL == true) {
@@ -176,6 +187,12 @@ int Crate::MainLoop(FillSched *s) {
       for (int i=0;i<s->numEntries;i++){
         if(s->sched[i].schedFlag){
           fill(s,i); //start the fill cycle
+
+          //schedule an autosave
+          if(autosaveFlag == false){
+            autosaveFlag = true;
+            autosaveFlagTime = GetTime();
+          }
         }
       }
 
@@ -427,12 +444,6 @@ int Crate::recordMeasurement(FillSched *s) {
     cbWrite(&sensorBuffer[i], &sensorValue[i]);
   }
 
-  /*for (int i = 0; i < numTempSensors; i++) {
-    //save temperature measurement to buffer
-    sprintf(tempValue[i].value, "%f", findTemp(Measure(tempSensorInputs[i]), tempSensorBoxPorts[i]));
-    cbWrite(&tempBuffer[i], &tempValue[i]);
-  }*/
-
   return 1;
 }
 /*Function which prints a table of sensor values to the command line*/
@@ -518,13 +529,13 @@ int Crate::NetSave(FillSched* s, char *filename) {
   Save(s,filename);
 
   //Convert the given filename into a C string that can be read as a terminal command
-  /*stringstream tmpcommand;
-  tmpcommand << "sh plot.sh " << filename << " " << networkloc << " " << numValves << " " << numTempSensors;
+  stringstream tmpcommand;
+  tmpcommand << "sh plot.sh " << filename << " " << networkloc << " " << s->numEntries << " " << s->numEntries; //THIS PROBABLY DOES NOT WORK
   const std::string tmp = tmpcommand.str();
   const char *command = tmp.c_str();
 
   //Plot (in gnuplot) and upload file using external bash script
-  system(command);*/
+  system(command);
 
   return 1;
 }
@@ -705,9 +716,9 @@ int Crate::readParameters(void) {
         }    
     }
 
-  printf("File 'parameters.dat' read sucessfully!\n");
+  printf("\nFile 'parameters.dat' read sucessfully!\n");
   printf("Sensor threshold to indicate LN2 overflow (V) = %.2f \n", threshold);
-  printf("Weight at which tank needs refilled (kg)= %.2f \n", scale_threshold);
+  printf("Weight at which tank needs refilled (kg) = %.2f \n", scale_threshold);
   printf("Time between readings when not filling (microsec) = %i \n", polling_time);
   printf("Number of measurements allowed above sensor threshold = %i \n", iterations);
   printf("Maximum length of time filling can take place (s) = %.2f \n", maxfilltime);
@@ -730,43 +741,42 @@ int Crate::readParameters(void) {
 
 int Crate::readCalibration(void) {
   /* Read sensor connections from text file connections.dat*/
+  char *tok;
+  char str[256],fullLine[256],parameter[256],value[256];
+
   FILE *parfile = fopen("calibration.dat", "r");
-  char* str;
-  str = fgets(tmp, 200, parfile); //advance a line
-  str = fgets(tmp, 200, parfile); //advance a line
-  str = fgets(tmp, 200, parfile); //advance a line
-  str = fgets(tmp, 200, parfile); //advance a line
-  str = fgets(tmp, 200, parfile); //advance a line
-  str = fgets(tmp, 200, parfile); //advance a line
-  str = fgets(tmp, 200, parfile); //advance a line
-  if(fscanf(parfile, "%s", tmp)!=0)
-    sensorBoxSupplyV = atof(tmp);
-  str = fgets(tmp, 200, parfile); //end the line
-  str = fgets(tmp, 200, parfile); //advance a line
-  for (int i = 0; i < 20; i++) {
-    if(fscanf(parfile, "%s", tmp)!=0)
-      boxResistors[i] = atof(tmp);
-    str = fgets(tmp, 200, parfile); //end the line
-  }
-  str = fgets(tmp, 200, parfile); //advance a line
-  str = fgets(tmp, 200, parfile); //advance a line
-  for (int i = 0; i < 3; i++) {
-    if(fscanf(parfile, "%s", tmp)!=0)
-      tempFit[i] = atof(tmp);
-    str = fgets(tmp, 200, parfile); //end the line
-    str = fgets(tmp, 200, parfile); //advance a line
-  }
-  str = fgets(tmp, 200, parfile); //advance a line
-  str = fgets(tmp, 200, parfile); //advance a line
-  for (int i = 0; i < 2; i++) {
-    if(fscanf(parfile, "%s", tmp)!=0)
-      scaleFit[i] = atof(tmp);
-    str = fgets(tmp, 200, parfile); //end the line
-    str = fgets(tmp, 200, parfile); //advance a line
-  }
+
+  while(!(feof(parfile)))//go until the end of file is reached
+    {
+			if(fgets(str,256,parfile)!=NULL) //get an entire line
+				{
+          strcpy(fullLine,str);
+					tok=strtok(str,"[");
+          if(tok!=NULL){
+            tok[strcspn(tok, "\r\n")] = 0;//strips newline characters from the string
+            strcpy(parameter,tok);
+            tok = strtok (NULL, "]");
+            if(tok!=NULL){
+              tok[strcspn(tok, "\r\n")] = 0;//strips newline characters from the string
+              strcpy(value,tok);
+              if((parameter!=NULL)&&(value!=NULL)){
+                if(strcmp(parameter,"V_to_weight_A")==0){
+                  scaleFit[0] = atof(value);
+                }else if(strcmp(parameter,"V_to_weight_B")==0){
+                  scaleFit[1] = atof(value);
+                }
+              }
+            }
+          }
+        }    
+    }
+  
+  printf("\nFile 'calibration.dat' read sucessfully!\n");
+  printf("Scale voltage to weight calibration parameters = %.6f, %.6f\n",scaleFit[0],scaleFit[1]);
+
   fclose(parfile);
 
-  printf("File 'calibration.dat' read sucessfully!\n");
+  
 
   return 1;
 }
@@ -946,24 +956,6 @@ void Crate::readSchedule(FillSched *s){
 		}
 	}
 	printf("\n");
-}
-
-
-
-/*Funtion which converts dewar temperature sensor voltage values into temperatures*/
-double
-Crate::findTemp(double vSensor, int sensorPort) {
-  double r1 = boxResistors[sensorPort - 1];                 //measured resistance inside sensor box
-  double rSensor = r1 / ((sensorBoxSupplyV / vSensor) - 1); //resistance of the temperature sensor
-
-  /*returns temperature in kelvin, based on 2nd order polynomial fit to resistance/temp curve*/
-  double temp = (rSensor * rSensor * tempFit[0] + rSensor * tempFit[1] + tempFit[2]);
-
-  if (temp < 1000) {
-    return temp;
-  } else {
-    return 0; //don't record very high values (eg. from unplugged sensor) to prevent bad plot scaling
-  }
 }
 
 /*Function which converts scale voltage values into temperatures*/

@@ -133,9 +133,6 @@ private:
 	int scaleInput; //input DAQ channel for the scale reading
 	
 	//Sensor calibration parameter declarations
-	double sensorBoxSupplyV; //sensor box supply voltage
-	double boxResistors [20]; //array of resistance values for resistors in sensor box
-	double tempFit [3]; //array of fit parameters for PT100 temperature
 	double scaleFit [2]; //array of fit parameters for scale reading
    
 };
