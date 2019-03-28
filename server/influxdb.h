@@ -43,7 +43,7 @@ typedef struct _influx_client_t
 } influx_client_t;
 
 static int post_http(influx_client_t* c, ...);
-static int send_udp(influx_client_t* c, ...);
+//static int send_udp(influx_client_t* c, ...);
 
 #define IF_TYPE_ARG_END       0
 #define IF_TYPE_MEAS          1
@@ -150,7 +150,7 @@ END:
 #undef _GET_NUMBER
 #undef _
 
-static int send_udp(influx_client_t* c, ...)
+/*static int send_udp(influx_client_t* c, ...)
 {
     va_list ap;
     char* line = NULL;
@@ -182,7 +182,7 @@ static int send_udp(influx_client_t* c, ...)
 END:
     free(line);
     return ret;
-}
+}*/
 
 static int _format_line(char** buf, va_list ap)
 {

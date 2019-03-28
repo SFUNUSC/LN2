@@ -9,16 +9,13 @@ SRCS:=LN2_server.cpp msgtool.cpp lock.cpp output.cpp
 
 all: LN2_server_nidaq
 
-LN2_server_nidaq: $(OBJECTS_NIDAQ) LN2_server.h msgtool.h lock.h crate.h
+LN2_server_nidaq: $(OBJECTS_NIDAQ) LN2_server.h msgtool.h lock.h
 	$(CXX) -o  LN2_server $(OBJECTS_NIDAQ) $(CXXFLAGS) $(INCLUDES) $(NILIBS) $(ROOT) -lm -ldl
 
-LN2_server_test: $(OBJECTS_TEST) LN2_server.h msgtool.h lock.h crate.h
+LN2_server_test: $(OBJECTS_TEST) LN2_server.h msgtool.h lock.h
 	$(CXX) -o  LN2_server $(OBJECTS_TEST) $(CXXFLAGS) $(INCLUDES) $(ROOT) -lm -ldl
 
-crate.o:crate.cpp crate.h
-	$(CXX) -c crate.cpp -o crate.o $(CXXFLAGS) $(INCLUDES) 
-
-LN2_server.o:LN2_server.cpp crate.h
+LN2_server.o:LN2_server.cpp LN2_server.h
 	$(CXX) -c LN2_server.cpp -o LN2_server.o $(CXXFLAGS) $(INCLUDES)
 
 test_control.o:test_control.cpp test_control.h

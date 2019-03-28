@@ -1,3 +1,4 @@
+#include <sstream>
 #include <sys/timeb.h>
 #include <stdio.h>
 #include "msgtool.h"
@@ -7,6 +8,13 @@
 
 #define MAXNUMVALVES 8
 #define MAXSCHEDENTRIES 256
+
+#define read_ports 2
+#define first_port_read 1
+#define write_ports 1
+
+#define DAQmxErrChk(functionCall) if( DAQmxFailed(error=(functionCall)) ) goto Error; else
+
 
 //valve and sensor measurement functions which should be implemented for any DAQ used with this code
 int chanOn(int);
@@ -52,11 +60,6 @@ struct Signals
   bool LIST;
 };
 
-class Crate
-{
-public:
-  Crate();
-  ~Crate();
   int Boot(FillSched*);
   int MainLoop(FillSched*);
   int recordMeasurement(FillSched*);
@@ -80,7 +83,6 @@ public:
   double findTemp(double vSensor, int sensorPort);
   double findWeight(double vScale);
 
-private:
 	struct Signals signaled;
 	MsgQ *msg;
 	lock *l;
@@ -89,18 +91,7 @@ private:
 	char port0[128];
 	char port1[128];
 	char port2[128];
-
-	/*TaskHandle  taskHandleRead, taskHandleWrite;
-	int32       error;
-	char        errBuff[2048];
-
-	// Read parameters
-	uInt32      r_data [read_ports];
-	int32       read;
-	// Write parameters
-	uInt32      w_data[write_ports];
-	int32       written;*/
-
+	
 	struct timeb tstart,tstop,pstart,pstop,tcurrent;
 	double paused;
 	float meas;
@@ -134,5 +125,3 @@ private:
 	
 	//Sensor calibration parameter declarations
 	double scaleFit [2]; //array of fit parameters for scale reading
-   
-};
