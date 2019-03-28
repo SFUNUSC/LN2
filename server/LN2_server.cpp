@@ -83,10 +83,11 @@ int MainLoop(FillSched *s) {
       //autosave if it has been 20 minutes since a fill
       if(autosaveFlag){
         for (int i=0;i<s->numEntries;i++){
-          if(current_run_min - autosaveFlagTime > 20){
+          if((current_run_min - autosaveFlagTime) > 2){
             autosaveNow = true;
             autosaveFlag = false; //unset the flag
           }
+          //printf("autosavetime = %f %f %f \n",current_run_min - autosaveFlagTime, current_run_min, autosaveFlagTime);
         }
         if(autosaveNow){
           autosaveData(s);
@@ -167,7 +168,7 @@ int MainLoop(FillSched *s) {
           //schedule an autosave
           if(autosaveFlag == false){
             autosaveFlag = true;
-            autosaveFlagTime = GetTime();
+            autosaveFlagTime = GetTime()/60.0; //time in minutes
           }
         }
       }
@@ -699,10 +700,10 @@ int readParameters(void) {
 
   printf("\nFile 'parameters.dat' read sucessfully!\n");
   printf("Sensor threshold to indicate LN2 overflow (V) = %.2f \n", threshold);
-  printf("Weight at which tank needs refilled (kg) = %.2f \n", scale_threshold);
+  printf("Weight at which tank needs refilling (kg) = %.2f \n", scale_threshold);
   printf("Time between readings when not filling (microsec) = %i \n", polling_time);
   printf("Number of measurements allowed above sensor threshold = %i \n", iterations);
-  printf("Maximum length of time filling can take place (s) = %.2f \n", maxfilltime);
+  printf("Maximum length of time filling can take place (s) = %.0f \n", maxfilltime);
   printf("Number of saved data points = %i \n", circBufferSize);
   if(autosave==1){
     printf("Will autosave data to: %s\n", networkloc);
@@ -952,6 +953,10 @@ double findWeight(double vScale) {
 
 int main()
 {
+  
+  printf("\nSFU-NSL LN2 control system server program\n");
+  printf("-----------------------------------------\n\n");
+
   int retval;
   FillSched *s=(FillSched*)calloc(1,sizeof(FillSched)); 
 
