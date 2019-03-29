@@ -1,6 +1,6 @@
 //code for controlling the NIDAQmx based system used for GEARBOX
-
-#include <string>
+#include <stdio.h>
+#include <string.h>
 #include <cstdio>
 #include <cstdlib>
 #include <sstream>

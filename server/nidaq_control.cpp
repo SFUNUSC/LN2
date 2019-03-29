@@ -136,7 +136,8 @@ float measure(int channel) {
   }
 
   //Generate the DAQ channel (eg. Dev1/ai1) that will be measured
-  char *mchannel = "Dev1/ai";
+  char mch[256];
+  char *mchannel = strcpy(mch,"Dev1/ai");
   stringstream ss;
   ss << mchannel << channel;
   const std::string tmp = ss.str();
