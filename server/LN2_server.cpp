@@ -6,14 +6,14 @@ const int commandSize = 4096;
 char command[commandSize];
 int autosaveCounter = 0; //counter for number of autosaves completed since run start
 
-/* declare circular buffer objects used to log run time and readings from the two sensors */
+// declare circular buffer objects used to log run time and readings from the two sensors
 CircularBuffer rtbuffer;         //buffer for storing local time strings
 CircularBuffer tbuffer;          //buffer for storing time since run start
 CircularBuffer weightbuffer;     //buffer for storing voltage readings from scale (to track LN2 tank weight)
 CircularBuffer sensorBuffer[MAXSCHEDENTRIES]; //buffers for storing voltage readings from LN2 sensors
 CircularBuffer tempBuffer[MAXSCHEDENTRIES];   //buffers for storing temperature readings from detector readouts
 
-/* Declare elements corresponding to each buffer */
+// Declare elements corresponding to each buffer
 ElemType rtelement;
 ElemType telement;
 ElemType weightelement;
@@ -33,7 +33,7 @@ int Boot(FillSched *s) {
   readCalibration(); //get sensor calibration data from file
 	readSchedule(s); //read in the filling schedule
 
-  /* Initialize (or re-initialize) all data saving buffers prior to run */
+  // Initialize (or re-initialize) all data saving buffers prior to run
   cbInit(&rtbuffer, circBufferSize);
   cbInit(&tbuffer, circBufferSize);
   cbInit(&weightbuffer, circBufferSize);
@@ -54,7 +54,7 @@ int Boot(FillSched *s) {
   return 1;
 }
 /***********************************************************************************/
-/*The main loop, in which data is acquired and saved.*/
+//The main loop, in which data is acquired and saved.
 int MainLoop(FillSched *s) {
 	double current_run_min;
   int day, hour, minute;
@@ -361,7 +361,7 @@ double GetTime(void) {
   telapsed = telapsed / 1000 + tcurrent.time - tstart.time;
   return telapsed;
 }
-/*Function which records current sensor values in circular buffers*/
+// Function which records current sensor values in circular buffers
 int recordMeasurement(FillSched *s) {
   double weightV, weight;
   double sensor[MAXSCHEDENTRIES];
@@ -422,7 +422,7 @@ int recordMeasurement(FillSched *s) {
 
   return 1;
 }
-/*Function which prints a table of sensor values to the command line*/
+// Function which prints a table of sensor values to the command line
 int getPlot(FillSched *s) {
 
   printf("Real Time		Run Time (s)	Scale Sensor (V)	");
@@ -434,7 +434,7 @@ int getPlot(FillSched *s) {
   }
   printf("\n"); //Line break at end
 
-  /* Print all elements in the buffers */
+  // Print all elements in the buffers
   for (int i = 0; i < cbCount(&tbuffer); i++) {
 
     cbRead(&rtbuffer, &rtelement); //read values from buffers
@@ -458,7 +458,7 @@ int getPlot(FillSched *s) {
   }
   return 1;
 }
-/*Function which prints a table of sensor values to a text file*/
+// Function which prints a table of sensor values to a text file
 int Save(FillSched *s, char *filename) {
   FILE *fp;
   fp = fopen(filename, "w");
@@ -473,7 +473,7 @@ int Save(FillSched *s, char *filename) {
   }
   fprintf(fp, "\n"); //Line break at end
 
-  /* Print all elements in the buffers */
+  // Print all elements in the buffers
   for (int i = 0; i < cbCount(&tbuffer); i++) {
 
     cbRead(&rtbuffer, &rtelement); //read values from buffers
@@ -640,7 +640,7 @@ int autosaveData(FillSched* s) {
   time_t t = time(0);
   strftime(st, 80, "%d%m%Y", localtime(&t));
   autosaveCounter += 1;
-  /*Generate a filename to autosave with*/
+  // Generate a filename to autosave with
   stringstream tmpascommand;
   tmpascommand << st << "autosave" << autosaveCounter;
   std::string tmp = tmpascommand.str();
@@ -722,7 +722,7 @@ int readParameters(void) {
 }
 
 int readCalibration(void) {
-  /* Read sensor connections from text file connections.dat*/
+  // Read scale/sensor calibration data from text file calibration.dat
   char *tok;
   char str[256],fullLine[256],parameter[256],value[256];
 
@@ -940,11 +940,11 @@ void readSchedule(FillSched *s){
 	printf("\n");
 }
 
-/*Function which converts scale voltage values into temperatures*/
-/*Currently using a very rough calibration*/
+// Function which converts scale voltage values into weight
+// Currently using a very rough calibration defined in calibration.dat
 double findWeight(double vScale) {
 
-  /*returns weight in kg, based on linear fit to calibration curve*/
+  // returns weight in kg, based on linear fit to calibration curve
   return (vScale * scaleFit[0] + scaleFit[1]);
 }
 

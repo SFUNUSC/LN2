@@ -8,7 +8,7 @@ readings_before_fill_stop[12]            ## Integer number of measurements allow
 max_filling_time[1500]                   ## Maximum length of time during which filling can take place before automatic shut-off of valves.
 buffer_size[1000]                        ## Size of the data saving buffers (# of data points).
 autosave[1]                              ## Boolean (0=false, 1=true) determining if data will be automatically saved and uploaded after every fill.
-upload_loc[/home/jono/]   ## Network OR local location to upload to (username@hostname:location).
+upload_loc[/home/LN2/public_html/LN2/]   ## Network OR local location to upload to (username@hostname:location).
 send_email[0]                            ## Boolean (0=false, 1=true) telling program whether it should send alerts by e-mail.
 email_adress[fake_email]                 ## E-mail address to send alerts to.
 
