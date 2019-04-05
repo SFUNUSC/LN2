@@ -939,14 +939,14 @@ void readSchedule(FillSched *s){
           if(i!=j){
             s->sched[i].schedAfterEntry = j;
           }else{
-            printf("ERROR: schedule entry %i (%s) cannot be scheduled directly after itself!\n",i,s->sched[i].entryName);
+            printf("ERROR: schedule entry %i (%s) cannot be scheduled directly after itself!\n",i+1,s->sched[i].entryName);
             exit(-1);
           }
           
         }
       }
       if(s->sched[i].schedAfterEntry == -1){
-        printf("ERROR: schedule entry %i (%s) cannot be scheduled after the non-existent entry: %s\n",i,s->sched[i].entryName,s->sched[i].schedAfterEntryName);
+        printf("ERROR: schedule entry %i (%s) cannot be scheduled after the non-existent entry: %s\n",i+1,s->sched[i].entryName,s->sched[i].schedAfterEntryName);
         exit(-1);
       }
     }
