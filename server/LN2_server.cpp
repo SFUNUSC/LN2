@@ -76,14 +76,13 @@ int MainLoop(FillSched *s) {
     }
     //if the acquisition is on
     if (signaled.RUNNING) {
-      current_run_time = GetTime();
-			current_run_min = current_run_time/60.0;
+			current_run_min = GetTime()/60.0;
 			//printf("minute: %f\n",current_run_min);
 
       //autosave if it has been 20 minutes since a fill
       if(autosaveFlag){
         for (int i=0;i<s->numEntries;i++){
-          if((current_run_min - autosaveFlagTime) > 2){
+          if((current_run_min - autosaveFlagTime) > 20){
             autosaveNow = true;
             autosaveFlag = false; //unset the flag
           }
@@ -164,6 +163,21 @@ int MainLoop(FillSched *s) {
       for (int i=0;i<s->numEntries;i++){
         if(s->sched[i].schedFlag){
           fill(s,i); //start the fill cycle
+
+          //schedule entries that are supposed to occur directly after fills
+          for(int j=0;j<s->numEntries;j++){
+            if(j!=i){ //entries cannot run directly after themselves
+              if(s->sched[j].schedMode == 8){
+                if(s->sched[j].schedAfterEntry == i){
+                  current_run_min = GetTime()/60.0;
+                  printf("Scheduling fill for %s ...\n",s->sched[j].entryName);
+                  s->sched[j].schedFlag=1; //set the fill flag
+                  s->sched[j].lastTriggerTime = current_run_min;
+                  s->sched[j].hasBeenTriggered = 1;
+                }
+              }
+            }
+          }
 
           //schedule an autosave
           if(autosaveFlag == false){
@@ -853,8 +867,10 @@ void readSchedule(FillSched *s){
 										s->sched[currentEntry].schedMode=6;
 									}else if(strcmp(tok2,"by_minute")==0){
 										s->sched[currentEntry].schedMode=7;
+									}else if(strcmp(tok2,"after_entry")==0){
+										s->sched[currentEntry].schedMode=8;
 									}else{
-										printf("ERROR: Invalid schedule interval in schedule entry %i.  Valid values are [monday,tuesday,wednesday,thursday,friday,saturday,sunday,by_minute].\n",currentEntry+1);
+										printf("ERROR: Invalid schedule interval in schedule entry %i.  Valid values are [monday,tuesday,wednesday,thursday,friday,saturday,sunday,by_minute,after_entry].\n",currentEntry+1);
 										exit(-1);
 									}
 									if(s->sched[currentEntry].schedMode==7){
@@ -862,6 +878,11 @@ void readSchedule(FillSched *s){
 										tok2 = strtok (NULL, "]");
 										tok2[strcspn(tok2, "\r\n")] = 0;//strips newline characters from the string
 										s->sched[currentEntry].schedMin = atoi(tok2);
+									}else if(s->sched[currentEntry].schedMode==8){
+										//get the interval in minutes
+										tok2 = strtok (NULL, "]");
+										tok2[strcspn(tok2, "\r\n")] = 0;//strips newline characters from the string
+										strcpy(s->sched[currentEntry].schedAfterEntryName,tok2);
 									}else{
 										tok2 = strtok (NULL, ":");
 										tok2[strcspn(tok2, "\r\n")] = 0;//strips newline characters from the string
@@ -904,11 +925,35 @@ void readSchedule(FillSched *s){
 				exit(-1);
 			}
 		}
-
+  s->numEntries = currentEntry-1;
 	fclose(schedfile);
 
+
+  //convert entry names to indices
+  for(int i=0;i<s->numEntries;i++){
+    if(s->sched[i].schedMode==8){
+      
+      s->sched[i].schedAfterEntry = -1;
+      for(int j=0;j<s->numEntries;j++){
+        if(strcmp(s->sched[i].schedAfterEntryName,s->sched[j].entryName)==0){
+          if(i!=j){
+            s->sched[i].schedAfterEntry = j;
+          }else{
+            printf("ERROR: schedule entry %i (%s) cannot be scheduled directly after itself!\n",i,s->sched[i].entryName);
+            exit(-1);
+          }
+          
+        }
+      }
+      if(s->sched[i].schedAfterEntry == -1){
+        printf("ERROR: schedule entry %i (%s) cannot be scheduled after the non-existent entry: %s\n",i,s->sched[i].entryName,s->sched[i].schedAfterEntryName);
+        exit(-1);
+      }
+    }
+  }
+
 	//report on fill schedule info that was read in
-	s->numEntries = currentEntry-1;
+	
 	printf("\nFill schedule read. %i entries found.\n",s->numEntries);
 	for(int i=0;i<s->numEntries;i++){
 		printf("Schedule entry %i: %s, valves: [",i+1,s->sched[i].entryName);
@@ -932,6 +977,8 @@ void readSchedule(FillSched *s){
 			printf("every saturday at %.2i:%.2i.\n",s->sched[i].schedHour,s->sched[i].schedMin);
 		}else if(s->sched[i].schedMode==7){
 			printf("every %i minute(s).\n",s->sched[i].schedMin);
+		}else if(s->sched[i].schedMode==8){
+			printf("directly after schedule entry: %s\n",s->sched[s->sched[i].schedAfterEntry].entryName);
 		}else{
 			printf("UNDEFINED\n");
 			exit(-1);
