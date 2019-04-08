@@ -187,6 +187,9 @@ int MainLoop(FillSched *s) {
         }
       }
 
+      //record data
+      recordMeasurement(s);
+
       //wait for some interval
       usleep(polling_time);
     }
