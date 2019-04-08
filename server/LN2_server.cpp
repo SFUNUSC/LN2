@@ -246,20 +246,27 @@ void ProcessSignal(FillSched* s) {
   }
   if (signaled.LIST) {
     signaled.LIST = false;
-    printf("begin -- Begins the run.  The dewar filling process will occur at set intervals, defined in parameters.dat.\n");
-    printf("start -- Same as above.\n");
-    printf("end -- Ends the run.  If currently filling, ends the filling process.\n");
-    printf("stop -- Same as above.\n");
-    printf("fill detector_name -- Starts the dewar filling process immediately for the detector with name detector_name defined in schedule.dat.\n");
-    printf("time -- Shows the time elapsed since the last filling operation.\n");
-    printf("on X -- Turns on the DAQ switch P0.X, where X is an integer from 0 to 7.\n");
-    printf("off -- Turns off all DAQ switches, closing all valves.\n");
-    printf("measure X-- Shows the voltage reading on DAQ channel aiX, where X is an integer from 0 to 7.\n");
-    printf("table -- Shows recent sensor data in a table format.\n");
-    printf("save filename -- Saves recent sensor data to a text file with name specifed by filename.\n");
-    printf("netsave filename -- Saves recent sensor data to a text file with name specifed by filename, and uploads a graphical figure via scp to the location defined in the shell script plot.sh.\n");
-    printf("exit -- Ends the run and exits the control program.\n");
-    printf("quit -- Same as above.\n\n");
+    printf("begin              -- Begins the run.  The LN2 filling process will occur based on\n"); 
+    printf("                      the schedule defined in schedule.dat.\n");
+    printf("start              -- Same as above.\n");
+    printf("end                -- Ends the run.  If currently filling, ends the filling process.\n");
+    printf("stop               -- Same as above.\n");
+    printf("fill detector_name -- Starts the dewar filling process immediately for the detector\n");
+    printf("                      with name detector_name defined in schedule.dat.\n");
+    printf("time               -- Shows the time elapsed since the last filling operation.\n");
+    printf("on X               -- Manually turns on the DAQ switch X, where X is an integer\n");
+    printf("                      (from 0 to 7 on the NIDAQ controller).\n");
+    printf("off                -- Manually turns off all DAQ switches, closing all valves.\n");
+    printf("measure X          -- Shows the voltage reading on DAQ channel X, where X is an\n");
+    printf("                      integer (from 0 to 7 on the NIDAQ controller).\n");
+    printf("table              -- Shows recent sensor data in a table format.\n");
+    printf("save filename      -- Saves recent sensor data to a text file with name specifed\n");
+    printf("                      by filename.\n");
+    printf("netsave filename   -- Saves recent sensor data to a text file with name specifed\n");
+    printf("                      by filename, and uploads a graphical figure via scp to the\n");
+    printf("                      location defined in the shell script plot.sh.\n");
+    printf("exit               -- Ends the run and exits the LN2_server program.\n");
+    printf("quit               -- Same as above.\n\n");
     printf("Run parameters can be modified by editing the text file parameters.dat in the same folder as the main program.  Parameters may be edited while the program is running, in which case they will be applied on the subsequent run.\n");
   }
   if (signaled.EXIT) {
@@ -760,6 +767,8 @@ int readCalibration(void) {
                   scaleFit[0] = atof(value);
                 }else if(strcmp(parameter,"V_to_weight_B")==0){
                   scaleFit[1] = atof(value);
+                }else if(strcmp(parameter,"scale_input")==0){
+                  scaleInput = atoi(value);
                 }
               }
             }
@@ -768,6 +777,7 @@ int readCalibration(void) {
     }
   
   printf("\nFile 'calibration.dat' read sucessfully!\n");
+  printf("Scale input channel = %i\n",scaleInput);
   printf("Scale voltage to weight calibration parameters = %.6f, %.6f\n",scaleFit[0],scaleFit[1]);
 
   fclose(parfile);

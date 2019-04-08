@@ -2,5 +2,6 @@ TEMP./SCALE SENSOR CALIBRATION DATA
 This tells the server how to calculate the PT100 temperature sensor and scale readout values.
 The sensor box should contain a resistor in series with each sensor, and the DAQ should read voltage across each sensor.
 
+scale_input[7]               # DAQ input channel the scale is connected to (aiX, X = ?)
 V_to_weight_A[224.047836]    # Fit parameters converting scale readout voltage V to weight in kg (weight = AV + B))
 V_to_weight_B[0.0074602166]  # Fit parameters converting scale readout voltage V to weight in kg (weight = AV + B))
