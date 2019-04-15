@@ -4,7 +4,7 @@ New parameters will be applied whenever the LN2_server program is restarted.
 sensor_threshold_V[5]                    ## Sensor threshold (in volts) that indicates an LN2 overflow.
 scale_threshold_kg[185]                  ## Scale reading (in kg) below which the user is warned that tank is close to empty.
 sensor_reading_interval_ms[10000]        ## Time in ms between sensor readings when not filling (more than 2000 milliseconds)
-readings_before_fill_stop[12]            ## Integer number of measurements allowed above the sensor threshold before stopping LN2 flow.
+readings_before_fill_stop[6]            ## Integer number of measurements allowed above the sensor threshold before stopping LN2 flow.
 max_filling_time[1500]                   ## Maximum length of time during which filling can take place before automatic shut-off of valves.
 buffer_size[1000]                        ## Size of the data saving buffers (# of data points).
 autosave[1]                              ## Boolean (0=false, 1=true) determining if data will be automatically saved and uploaded after every fill.
