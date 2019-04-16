@@ -144,7 +144,7 @@ int MainLoop(FillSched *s) {
                   //restrict filling times
                   if((hour - s->sched[i].schedHour) < 2){
                     //check that we haven't already triggered a fill today for this entry
-                    if( ((current_run_min - s->sched[i].lastTriggerTime) > 1500) || (s->sched[i].hasBeenTriggered == 0) ){
+                    if( ((current_run_min - s->sched[i].lastTriggerTime) > 1200) || (s->sched[i].hasBeenTriggered == 0) ){
                       printf("Scheduling fill for %s ...\n",s->sched[i].entryName);
                       s->sched[i].schedFlag=1; //set the fill flag
                       s->sched[i].lastTriggerTime = current_run_min;
