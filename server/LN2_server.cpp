@@ -134,20 +134,23 @@ int MainLoop(FillSched *s) {
 							s->sched[i].lastTriggerTime = current_run_min;
 							s->sched[i].hasBeenTriggered = 1;
 						}
-					}else{
+					}else if((s->sched[i].schedMode < 7)||(s->sched[i].schedMode == 9)){
 						//fill on a day of the week
 						//check that the day of the week is correct
-						if(day==s->sched[i].schedMode){
+						if((day==s->sched[i].schedMode)||(s->sched[i].schedMode == 9)){
 							//check that the time is correct
 							if(hour>=s->sched[i].schedHour){
 								if(minute>=s->sched[i].schedMin){
-									//check that we haven't already triggered a fill today
-									if( ((current_run_min - s->sched[i].lastTriggerTime) > 1500) || (s->sched[i].hasBeenTriggered == 0) ){
-										printf("Scheduling fill for %s ...\n",s->sched[i].entryName);
-										s->sched[i].schedFlag=1; //set the fill flag
-										s->sched[i].lastTriggerTime = current_run_min;
-										s->sched[i].hasBeenTriggered = 1;
-									}
+                  //restrict filling times
+                  if((hour - s->sched[i].schedHour) < 2){
+                    //check that we haven't already triggered a fill today for this entry
+                    if( ((current_run_min - s->sched[i].lastTriggerTime) > 1200) || (s->sched[i].hasBeenTriggered == 0) ){
+                      printf("Scheduling fill for %s ...\n",s->sched[i].entryName);
+                      s->sched[i].schedFlag=1; //set the fill flag
+                      s->sched[i].lastTriggerTime = current_run_min;
+                      s->sched[i].hasBeenTriggered = 1;
+                    }
+                  }
 								}
 							}
 						}else{
@@ -878,12 +881,14 @@ void readSchedule(FillSched *s){
 										s->sched[currentEntry].schedMode=5;
 									}else if(strcmp(tok2,"saturday")==0){
 										s->sched[currentEntry].schedMode=6;
+									}else if(strcmp(tok2,"everyday")==0){
+										s->sched[currentEntry].schedMode=9;
 									}else if(strcmp(tok2,"by_minute")==0){
 										s->sched[currentEntry].schedMode=7;
 									}else if(strcmp(tok2,"after_entry")==0){
 										s->sched[currentEntry].schedMode=8;
 									}else{
-										printf("ERROR: Invalid schedule interval in schedule entry %i.  Valid values are [monday,tuesday,wednesday,thursday,friday,saturday,sunday,by_minute,after_entry].\n",currentEntry+1);
+										printf("ERROR: Invalid schedule interval in schedule entry %i.  Valid values are [monday,tuesday,wednesday,thursday,friday,saturday,sunday,everyday,by_minute,after_entry].\n",currentEntry+1);
 										exit(-1);
 									}
 									if(s->sched[currentEntry].schedMode==7){
@@ -988,6 +993,8 @@ void readSchedule(FillSched *s){
 			printf("every friday at %.2i:%.2i.\n",s->sched[i].schedHour,s->sched[i].schedMin);
 		}else if(s->sched[i].schedMode==6){
 			printf("every saturday at %.2i:%.2i.\n",s->sched[i].schedHour,s->sched[i].schedMin);
+		}else if(s->sched[i].schedMode==9){
+			printf("every day at %.2i:%.2i.\n",s->sched[i].schedHour,s->sched[i].schedMin);
 		}else if(s->sched[i].schedMode==7){
 			printf("every %i minute(s).\n",s->sched[i].schedMin);
 		}else if(s->sched[i].schedMode==8){

@@ -28,7 +28,7 @@ typedef struct {
 		int valves[MAXNUMVALVES]; //list of valves to be opened, in the order they re opened in
 		int overflowSensor; //overflow (temperature) sensor input
 		int numValves; //number of valves in the list
-		int schedMode; //0 to 6=specific day and time (0=sunday,1=monday,...), 7=interval in minutes, 8=directly after another entry
+		int schedMode; //0 to 6=specific day and time (0=sunday,1=monday,...), 7=interval in minutes, 8=directly after another entry, 9=every day at specific time
 		int schedHour,schedMin; //parameters for scheduling frequency(number of minutes, time of day, etc.)
 		int schedAfterEntry; //index of entry which this entry occurs directly after
 		char schedAfterEntryName[256]; //name of entry which this entry occurs directly after
