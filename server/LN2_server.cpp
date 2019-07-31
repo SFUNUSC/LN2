@@ -4,7 +4,6 @@
 
 const int commandSize = 4096;
 char command[commandSize];
-int autosaveCounter = 0; //counter for number of autosaves completed since run start
 
 // declare circular buffer objects used to log run time and readings from the two sensors
 CircularBuffer rtbuffer;         //buffer for storing local time strings
@@ -25,13 +24,14 @@ influx_client_t c;
 
 int Boot(FillSched *s) {
   printf("Setting up the acquisition...\n");
-  //first thing we do: try to make a lock file, abort the program
-  //if one exists already
-  l = new lock("LN2");
 
   readParameters();  //get parameters for run from file
   readCalibration(); //get sensor calibration data from file
 	readSchedule(s); //read in the filling schedule
+
+  //try to make a lock file, abort the program
+  //if one exists already
+  l = new lock("LN2");
 
   // Initialize (or re-initialize) all data saving buffers prior to run
   cbInit(&rtbuffer, circBufferSize);
@@ -61,9 +61,6 @@ int MainLoop(FillSched *s) {
   struct tm *goodtime;
   time_t now;
   bool foundDetector;
-  double autosaveFlagTime = 0.0;
-  bool autosaveFlag = false;
-  bool autosaveNow = false;
 
   goodtime = (tm *)malloc(sizeof(tm));
 
@@ -78,21 +75,6 @@ int MainLoop(FillSched *s) {
     if (signaled.RUNNING) {
 			current_run_min = GetTime()/60.0;
 			//printf("minute: %f\n",current_run_min);
-
-      //autosave if it has been 20 minutes since a fill
-      if(autosaveFlag){
-        for (int i=0;i<s->numEntries;i++){
-          if((current_run_min - autosaveFlagTime) > 20){
-            autosaveNow = true;
-            autosaveFlag = false; //unset the flag
-          }
-          //printf("autosavetime = %f %f %f \n",current_run_min - autosaveFlagTime, current_run_min, autosaveFlagTime);
-        }
-        if(autosaveNow){
-          autosaveData(s);
-          autosaveNow = false; //unset the flag
-        }
-      }
 
       //filling outside of the normal cycle
       if (signaled.FILL == true) {
@@ -124,7 +106,7 @@ int MainLoop(FillSched *s) {
 			//SCHEDULE FILLING
 			//check for fill conditions
       for (int i=0;i<s->numEntries;i++){
-				//only check entries which have not awaiting fill
+				//only check entries which are not awaiting fill
 				if(s->sched[i].schedFlag==0){
 					if(s->sched[i].schedMode == 7){
 						//fill in a set interval (given in minutes)
@@ -136,22 +118,25 @@ int MainLoop(FillSched *s) {
 						}
 					}else if((s->sched[i].schedMode < 7)||(s->sched[i].schedMode == 9)){
 						//fill on a day of the week
-						//check that the day of the week is correct
+						//check that the day of the week is correct (schedMode == 9 for every day of the week)
 						if((day==s->sched[i].schedMode)||(s->sched[i].schedMode == 9)){
 							//check that the time is correct
 							if(hour>=s->sched[i].schedHour){
-								if(minute>=s->sched[i].schedMin){
-                  //restrict filling times
-                  if((hour - s->sched[i].schedHour) < 2){
-                    //check that we haven't already triggered a fill today for this entry
-                    if( ((current_run_min - s->sched[i].lastTriggerTime) > 1200) || (s->sched[i].hasBeenTriggered == 0) ){
-                      printf("Scheduling fill for %s ...\n",s->sched[i].entryName);
+                //restrict filling times
+                if((hour - s->sched[i].schedHour) < 2){
+                  if(minute>=s->sched[i].schedMin){
+                    //don't automatically schedule the same entry more than once
+                    if(s->sched[i].hasBeenTriggered == 0){
+                      printf("[%i:%i] Scheduling fill for %s ...\n",hour,minute,s->sched[i].entryName);
                       s->sched[i].schedFlag=1; //set the fill flag
                       s->sched[i].lastTriggerTime = current_run_min;
                       s->sched[i].hasBeenTriggered = 1;
                     }
                   }
-								}
+                }else{
+                  //enough time has passed, entry may be scheduled again
+                  s->sched[i].hasBeenTriggered = 0;
+                }
 							}
 						}else{
 							//wrong day of the week
@@ -159,7 +144,6 @@ int MainLoop(FillSched *s) {
 						}
 					}
 				}
-				
 			}
 
       //PERFORM FILLING
@@ -173,19 +157,13 @@ int MainLoop(FillSched *s) {
               if(s->sched[j].schedMode == 8){
                 if(s->sched[j].schedAfterEntry == i){
                   current_run_min = GetTime()/60.0;
-                  printf("Scheduling fill for %s ...\n",s->sched[j].entryName);
+                  printf("[%i:%i] Scheduling fill for %s ...\n",hour,minute,s->sched[j].entryName);
                   s->sched[j].schedFlag=1; //set the fill flag
                   s->sched[j].lastTriggerTime = current_run_min;
                   s->sched[j].hasBeenTriggered = 1;
                 }
               }
             }
-          }
-
-          //schedule an autosave
-          if(autosaveFlag == false){
-            autosaveFlag = true;
-            autosaveFlagTime = GetTime()/60.0; //time in minutes
           }
         }
       }
@@ -223,6 +201,9 @@ void ProcessSignal(FillSched* s) {
     else
       printf("Run ended already, command ignored\n");
   }
+  if (signaled.STOPFILL) {
+    signaled.FILLING = false;
+  }
   if (signaled.ON) {
     signaled.ON = false;
     printf(".");
@@ -246,10 +227,6 @@ void ProcessSignal(FillSched* s) {
     signaled.SAVE = false;
     Save(s,filename);
   }
-  if (signaled.NETSAVE) {
-    signaled.NETSAVE = false;
-    NetSave(s,filename);
-  }
   if (signaled.LIST) {
     signaled.LIST = false;
     printf("begin              -- Begins the run.  The LN2 filling process will occur based on\n"); 
@@ -259,6 +236,8 @@ void ProcessSignal(FillSched* s) {
     printf("stop               -- Same as above.\n");
     printf("fill detector_name -- Starts the dewar filling process immediately for the detector\n");
     printf("                      with name detector_name defined in schedule.dat.\n");
+    printf("stopfill           -- Stops any fill which is currently in progress, and continues the\n");
+    printf("                      run normally.\n");
     printf("time               -- Shows the time elapsed since the last filling operation.\n");
     printf("on X               -- Manually turns on the DAQ switch X, where X is an integer\n");
     printf("                      (from 0 to 7 on the NIDAQ controller).\n");
@@ -268,9 +247,6 @@ void ProcessSignal(FillSched* s) {
     printf("table              -- Shows recent sensor data in a table format.\n");
     printf("save filename      -- Saves recent sensor data to a text file with name specifed\n");
     printf("                      by filename.\n");
-    printf("netsave filename   -- Saves recent sensor data to a text file with name specifed\n");
-    printf("                      by filename, and uploads a graphical figure via scp to the\n");
-    printf("                      location defined in the shell script plot.sh.\n");
     printf("exit               -- Ends the run and exits the LN2_server program.\n");
     printf("quit               -- Same as above.\n\n");
     printf("Run parameters can be modified by editing the text file parameters.dat in the same folder as the main program.  Parameters may be edited while the program is running, in which case they will be applied on the subsequent run.\n");
@@ -292,7 +268,7 @@ void ReadCommand(struct Signals *signal, char *command) {
   if (signal == NULL || command == NULL) {
     return;
   }
-  if (((strstr(command, "end")) != NULL) || ((strstr(command, "stop")) != NULL)) {
+  if (((strcmp(command, "end")) == 0) || ((strcmp(command, "stop")) == 0)) {
     printf("\n Received end command ... \n\n");
     signal->END = true;
   } else if (((strcmp(command, "begin")) == 0) || ((strcmp(command, "start")) == 0)) {
@@ -300,17 +276,12 @@ void ReadCommand(struct Signals *signal, char *command) {
     signal->BEGIN = true;
   } else if ((strcmp(command, "time")) == 0) {
     signal->TIME = true;
-  } else if ((strstr(command, "netsave")) != NULL) {
-    filename = strtok(command, " ");
-    filename = strtok(NULL, " ");
-    printf("\n Saving data with filename %s to network ...\n\n", filename);
-    signal->NETSAVE = true;
   } else if ((strstr(command, "save")) != NULL) {
     filename = strtok(command, " ");
     filename = strtok(NULL, " ");
     printf("\n Saving data with filename %s ...\n\n", filename);
     signal->SAVE = true;
-  } else if (((strstr(command, "exit")) != NULL) || ((strstr(command, "quit")) != NULL)) {
+  } else if (((strcmp(command, "exit")) == 0) || ((strcmp(command, "quit")) == 0)) {
     printf("\n Received exit command ... \n\n");
     signal->EXIT = true;
   } else if ((strstr(command, "on")) != NULL) {
@@ -322,7 +293,7 @@ void ReadCommand(struct Signals *signal, char *command) {
     } else {
       printf("\n Invalid valve specified.  Type 'on X', where 'X' is an integer from 0 to 7. \n\n");
     }
-  } else if ((strstr(command, "off")) != NULL) {
+  } else if ((strcmp(command, "off")) == 0) {
     printf("\n Turning off DAQ switch ... \n\n");
     signal->OFF = true;
   } else if ((strstr(command, "measure")) != NULL) {
@@ -334,6 +305,9 @@ void ReadCommand(struct Signals *signal, char *command) {
     } else {
       printf("\n Invalid DAQ channel specified.  Type 'measure X', where 'X' is an integer from 0 to 7. \n\n");
     }
+  } else if ((strcmp(command, "stopfill")) == 0) {
+    printf("\n Received command to stop the current fill ... \n\n");
+    signal->STOPFILL = true;
   } else if ((strstr(command, "fill")) != NULL) {
     fillName = strtok(command, " ");
     fillName = strtok(NULL, " ");
@@ -347,7 +321,7 @@ void ReadCommand(struct Signals *signal, char *command) {
     }else{
       printf("\n Invalid fill command (syntax: ./LN2_master fill detector_name).\n\n");
     }
-  } else if ((strstr(command, "table")) != NULL) {
+  } else if ((strcmp(command, "table")) == 0) {
     printf("\n Showing table of recent data ... \n\n");
     signal->PLOT = true;
   } else if (((strcmp(command, "list")) == 0) || ((strcmp(command, "help")) == 0)) {
@@ -374,9 +348,6 @@ int EndRun(FillSched* s) {
   printf("Ending acquisition\n");
   printf("Run time %15.3f [s]\n", current_run_time);
   signaled.RUNNING = false;
-  if (autosave == true) {
-    autosaveData(s); //save data from end of run
-  }
 
   return 1;
 }
@@ -400,6 +371,7 @@ int recordMeasurement(FillSched *s) {
   ts = current_time;
   ts *= 1000000000;
   //	printf("current time %ld time stame %lld\n",current_time,ts);
+
   weightV = measure(scaleInput);
   for(int i=0;i<s->numEntries;i++){
     if(i<MAXSCHEDENTRIES){
@@ -407,6 +379,8 @@ int recordMeasurement(FillSched *s) {
     }
   }
   weight = findWeight(weightV);
+
+      
 
   //save real time to buffer
   strftime(rtelement.value, 80, "%d-%m-%Y,%H:%M:%S", localtime(&tcurrent.time));
@@ -526,25 +500,6 @@ int Save(FillSched *s, char *filename) {
   printf("Data saved locally file %s.\n", filename);
   return 1;
 }
-/*--------------------------------------------------------------*/
-int NetSave(FillSched* s, char *filename) {
-  /*First save data to local file*/
-  Save(s,filename);
-
-  //Convert the given filename into a C string that can be read as a terminal command
-  stringstream tmpcommand;
-  tmpcommand << "sh plot.sh " << filename << " " << networkloc << " " << s->numEntries << " " << s->numEntries; //THIS PROBABLY DOES NOT WORK
-  const std::string tmp = tmpcommand.str();
-  const char *command = tmp.c_str();
-
-  //Plot (in gnuplot) and upload file using external bash script
-  if((system(command))!=0){
-    printf("Netsave completed.\n");
-  }
-
-  return 1;
-}
-
 /*------------------------------------------------------------*/
 /*Function containing fill cycle instructions----------------*/
 /*----------------------------------------------------------*/
@@ -563,8 +518,6 @@ int fill(FillSched *s, int schedEntry) {
     printf("ERROR: Invalid fill schedule entry (%i)!\n",schedEntry);
     exit(-1);
   }
-
-  autosaveSwitch = true; //allows program to autosave again after fill
 
   //set up timer
   ftime(&tcurrent);
@@ -659,23 +612,6 @@ int fill(FillSched *s, int schedEntry) {
 
   return 1;
 }
-
-int autosaveData(FillSched* s) {
-  printf("\n Autosaving data ...\n\n");
-
-  char st[80];
-  time_t t = time(0);
-  strftime(st, 80, "%d%m%Y", localtime(&t));
-  autosaveCounter += 1;
-  // Generate a filename to autosave with
-  stringstream tmpascommand;
-  tmpascommand << st << "autosave" << autosaveCounter;
-  std::string tmp = tmpascommand.str();
-  const char *autosavename = tmp.c_str();
-  NetSave(s, const_cast<char *>(autosavename));
-
-  return 1;
-}
 /*--------------------------------------------------------------*/
 int readParameters(void) {
   // Read parameters from text file parameters.dat
@@ -710,10 +646,6 @@ int readParameters(void) {
                   maxfilltime = atof(value);
                 }else if(strcmp(parameter,"buffer_size")==0){
                   circBufferSize = atoi(value);
-                }else if(strcmp(parameter,"autosave")==0){
-                  autosave = atoi(value);
-                }else if(strcmp(parameter,"upload_loc")==0){
-                  strcpy(networkloc,value);
                 }else if(strcmp(parameter,"send_email")==0){
                   email = atoi(value);
                 }else if(strcmp(parameter,"email_adress")==0){
@@ -732,11 +664,6 @@ int readParameters(void) {
   printf("Number of measurements allowed above sensor threshold = %i \n", iterations);
   printf("Maximum length of time filling can take place (s) = %.0f \n", maxfilltime);
   printf("Number of saved data points = %i \n", circBufferSize);
-  if(autosave==1){
-    printf("Will autosave data to: %s\n", networkloc);
-  }else{
-    printf("Will not autosave data.\n");
-  }
   if(email==1){
     printf("Will send email alerts to: %s\n", mailaddress);
   }else{
@@ -888,7 +815,7 @@ void readSchedule(FillSched *s){
 									}else if(strcmp(tok2,"after_entry")==0){
 										s->sched[currentEntry].schedMode=8;
 									}else{
-										printf("ERROR: Invalid schedule interval in schedule entry %i.  Valid values are [monday,tuesday,wednesday,thursday,friday,saturday,sunday,everyday,by_minute,after_entry].\n",currentEntry+1);
+										printf("ERROR: Invalid schedule interval in schedule entry %i (%s).  Valid values are [monday,tuesday,wednesday,thursday,friday,saturday,sunday,everyday,by_minute,after_entry].\n",currentEntry+1,s->sched[currentEntry+1].entryName);
 										exit(-1);
 									}
 									if(s->sched[currentEntry].schedMode==7){
@@ -906,7 +833,7 @@ void readSchedule(FillSched *s){
 										tok2[strcspn(tok2, "\r\n")] = 0;//strips newline characters from the string
 										val=atoi(tok2);
 										if((val>23)||(val<0)){
-											printf("ERROR: Invalid hour specified in schedule entry %i.  Valid range is [0,23].\n",currentEntry+1);
+											printf("ERROR: Invalid hour specified in schedule entry %i (%s).  Valid range is [0,23].\n",currentEntry+1,s->sched[currentEntry+1].entryName);
 											exit(-1);
 										}else{
 											s->sched[currentEntry].schedHour = val;
@@ -915,7 +842,7 @@ void readSchedule(FillSched *s){
 										tok2[strcspn(tok2, "\r\n")] = 0;//strips newline characters from the string
 										val=atoi(tok2);
 										if((val>59)||(val<0)){
-											printf("ERROR: Invalid minute specified in schedule entry %i.  Valid range is [0,59].\n",currentEntry+1);
+											printf("ERROR: Invalid minute specified in schedule entry %i (%s).  Valid range is [0,59].\n",currentEntry+1,s->sched[currentEntry+1].entryName);
 											exit(-1);
 										}else{
 											s->sched[currentEntry].schedMin = val;
@@ -1001,6 +928,8 @@ void readSchedule(FillSched *s){
 			printf("directly after schedule entry: %s\n",s->sched[s->sched[i].schedAfterEntry].entryName);
 		}else{
 			printf("UNDEFINED\n");
+      l->unlock();
+      delete l;
 			exit(-1);
 		}
 	}
@@ -1032,9 +961,9 @@ int main()
   signaled.EXIT = false;
   signaled.RUNNING = false;
   signaled.SAVE = false;
-  signaled.NETSAVE = false;
   signaled.PLOT = false;
   signaled.FILL = false;
+  signaled.STOPFILL = false;
   signaled.FILLING = false;
   signaled.MEASURE = false;
   signaled.LIST = false;

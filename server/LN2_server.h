@@ -53,13 +53,13 @@ struct Signals
   bool RUNNING;
   bool PLOT;
   bool SAVE;
-  bool NETSAVE;
   bool ON;
   bool OFF;
   bool MEASURE;
   bool FILLING;
   bool FILL;
   bool LIST;
+	bool STOPFILL;
 };
 
   int Boot(FillSched*);
@@ -73,11 +73,9 @@ struct Signals
   int ResumeRun(void);
   int ClearSpectrum(void);
   int Save(FillSched*, char*);
-  int NetSave(FillSched*, char*);
   int getPlot(FillSched*);
   double GetTime(void);
   int fill(FillSched*,int);
-  int autosaveData(FillSched*);
   int readParameters(void);
   int readConnections(void);
   int readCalibration(void);
@@ -114,10 +112,7 @@ struct Signals
 	char* filename; //name of file to save data to
 	char* fillName; //name of system to fill
 	char* masterParam; //additional parameter that can be given to master
-	bool autosave; //if true, data will be automatically saved and uploaded once the data buffers are full
-	bool autosaveSwitch; //used to enforce only one autosave after each fill
 	bool email; //if true, alerts (tank nearly empty, automatic shutdown) will be sent by e-mail
-	char networkloc [200]; //network location to upload data to
 	char mailaddress [200]; //e-mail address to send alerts to
 	
 	//cooling system component value declarations
